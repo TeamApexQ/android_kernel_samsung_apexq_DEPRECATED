@@ -1525,9 +1525,11 @@ static int __devinit __wfd_probe(struct platform_device *pdev)
 		}
 
 		/* Other device specific stuff */
+        /* HACK - CM9 version, struct change 
 		mutex_init(&wfd_dev[c].dev_lock);
 		wfd_dev[c].in_use = false;
 		wfd_dev[c].ion_client = ion_client;
+        */
 
 		switch (WFD_DEVICE_NUMBER_BASE + c) {
 		case WFD_DEVICE_SECURE:

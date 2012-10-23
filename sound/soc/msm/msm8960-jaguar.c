@@ -996,7 +996,6 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 			&& system_rev < BOARD_REV03) ||
 		(!machine_is_jaguar() && !machine_is_ESPRESSO_VZW()
 			&& !machine_is_ESPRESSO10_VZW()
-			&& !machine_is_ESPRESSO_SPR()
 		&& !machine_is_APEXQ())) {
 		/* using mbhc driver for earjack */
 		tabla_hs_detect(codec, &hs_jack, &button_jack,
