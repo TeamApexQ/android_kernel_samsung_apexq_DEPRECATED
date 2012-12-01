@@ -22,6 +22,9 @@
 #include <linux/jiffies.h>
 #include <linux/gpio.h>
 #include <mach/peripheral-loader.h>
+#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+#include "wcnss_prealloc.h"
+#endif
 
 #define DEVICE "wcnss_wlan"
 #define VERSION "1.01"
@@ -44,6 +47,8 @@ static struct {
 	int		triggered;
 	int		smd_channel_ready;
 	unsigned int	serial_number;
+	int		thermal_mitigation;
+	void		(*tm_notify)(struct device *, int);
 	struct wcnss_wlan_config wlan_config;
 	struct delayed_work wcnss_work;
 } *penv = NULL;
@@ -75,17 +80,60 @@ static ssize_t wcnss_serial_number_store(struct device *dev,
 static DEVICE_ATTR(serial_number, S_IRUSR | S_IWUSR,
 	wcnss_serial_number_show, wcnss_serial_number_store);
 
+
+static ssize_t wcnss_thermal_mitigation_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	if (!penv)
+		return -ENODEV;
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", penv->thermal_mitigation);
+}
+
+static ssize_t wcnss_thermal_mitigation_store(struct device *dev,
+		struct device_attribute *attr, const char * buf, size_t count)
+{
+	int value;
+
+	if (!penv)
+		return -ENODEV;
+
+	if (sscanf(buf, "%d", &value) != 1)
+		return -EINVAL;
+	penv->thermal_mitigation = value;
+	if (penv->tm_notify)
+		(penv->tm_notify)(dev, value);
+	return count;
+}
+
+static DEVICE_ATTR(thermal_mitigation, S_IRUSR | S_IWUSR,
+	wcnss_thermal_mitigation_show, wcnss_thermal_mitigation_store);
+
 static int wcnss_create_sysfs(struct device *dev)
 {
+	int ret;
+
 	if (!dev)
 		return -ENODEV;
-	return device_create_file(dev, &dev_attr_serial_number);
+
+	ret = device_create_file(dev, &dev_attr_serial_number);
+	if (ret)
+		return ret;
+
+	ret = device_create_file(dev, &dev_attr_thermal_mitigation);
+	if (ret) {
+		device_remove_file(dev, &dev_attr_serial_number);
+		return ret;
+	}
+	return 0;
 }
 
 static void wcnss_remove_sysfs(struct device *dev)
 {
-	if (dev)
+	if (dev) {
 		device_remove_file(dev, &dev_attr_serial_number);
+		device_remove_file(dev, &dev_attr_thermal_mitigation);
+	}
 }
 
 static void wcnss_post_bootup(struct work_struct *work)
@@ -230,6 +278,25 @@ void wcnss_wlan_unregister_pm_ops(struct device *dev,
 }
 EXPORT_SYMBOL(wcnss_wlan_unregister_pm_ops);
 
+void wcnss_register_thermal_mitigation(struct device *dev,
+				void (*tm_notify)(struct device *, int))
+{
+	if (penv && dev && tm_notify)
+		penv->tm_notify = tm_notify;
+}
+EXPORT_SYMBOL(wcnss_register_thermal_mitigation);
+
+void wcnss_unregister_thermal_mitigation(
+				void (*tm_notify)(struct device *, int))
+{
+	if (penv && tm_notify) {
+		if (tm_notify != penv->tm_notify)
+			pr_err("tm_notify doesn't match registered\n");
+		penv->tm_notify = NULL;
+	}
+}
+EXPORT_SYMBOL(wcnss_unregister_thermal_mitigation);
+
 unsigned int wcnss_get_serial_number(void)
 {
 	if (penv)
@@ -272,6 +339,8 @@ wcnss_trigger_config(struct platform_device *pdev)
 	if (WCNSS_CONFIG_UNSPECIFIED == has_48mhz_xo)
 		has_48mhz_xo = pdata->has_48mhz_xo;
 	penv->wlan_config.use_48mhz_xo = has_48mhz_xo;
+
+	penv->thermal_mitigation = 0;
 
 	penv->gpios_5wire = platform_get_resource_byname(pdev, IORESOURCE_IO,
 							"wcnss_gpios_5wire");
@@ -437,10 +506,18 @@ static struct platform_driver wcnss_wlan_driver = {
 
 static int __init wcnss_wlan_init(void)
 {
+	int ret = 0;
+
 	platform_driver_register(&wcnss_wlan_driver);
 	platform_driver_register(&wcnss_wlan_ctrl_driver);
 
-	return 0;
+#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+	ret = wcnss_prealloc_init();
+	if (ret < 0)
+		pr_err("wcnss: pre-allocation failed\n");
+#endif
+
+	return ret;
 }
 
 static void __exit wcnss_wlan_exit(void)
@@ -456,6 +533,9 @@ static void __exit wcnss_wlan_exit(void)
 
 	platform_driver_unregister(&wcnss_wlan_ctrl_driver);
 	platform_driver_unregister(&wcnss_wlan_driver);
+#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
+	wcnss_prealloc_deinit();
+#endif
 }
 
 module_init(wcnss_wlan_init);
