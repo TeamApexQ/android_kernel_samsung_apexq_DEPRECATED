@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -147,12 +147,6 @@
 #elif defined( VOS_COMPILER_GNUC )
 
 #define VOS_INLINE_FN  static inline
-
-#define VOS_PACK_STRUCT_1  __attribute__ ((aligned(1), packed))
-#define VOS_PACK_STRUCT_2  __attribute__ ((aligned(2), packed))
-#define VOS_PACK_STRUCT_4  __attribute__ ((aligned(4), packed))
-#define VOS_PACK_STRUCT_8  __attribute__ ((aligned(8), packed))
-#define VOS_PACK_STRUCT_16 __attribute__ ((aligned(16), packed))
 
 #else
 #error "Compiling with an unknown compiler!!"

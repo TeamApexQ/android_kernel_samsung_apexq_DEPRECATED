@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -216,7 +216,7 @@ WLANDXE_ChannelConfigType chanRXHighPriConfig =
    WLANDXE_CHANNEL_HANDLE_CIRCULA,
 
    /* Number of Descriptor, NOT CLEAR YET !!! */
-   40,
+   256,
 
    /* MAX num RX Buffer, NOT CLEAR YET !!! */
    1,
@@ -394,10 +394,8 @@ wpt_status dxeChannelDefaultConfig
    /* Sanity Check */
    if((NULL == dxeCtrlBlk) || (NULL == channelEntry))
    {
-#ifdef WLAN_DEBUG
       HDXE_MSG(eWLAN_MODULE_DAL_DATA, eWLAN_PAL_TRACE_LEVEL_ERROR,
                "dxeLinkDescAndCtrlBlk Channel Entry is not valid");
-#endif
       return eWLAN_PAL_STATUS_E_INVAL;
    }
 
@@ -412,10 +410,8 @@ wpt_status dxeChannelDefaultConfig
 
    if((NULL == mappedChannel) || (WDTS_CHANNEL_MAX == idx))
    {
-#ifdef WLAN_DEBUG
       HDXE_MSG(eWLAN_MODULE_DAL_DATA, eWLAN_PAL_TRACE_LEVEL_ERROR,
-              "%s Failed to map channel", __FUNCTION__);
-#endif
+              "%s Failed to map channel", __func__);
       return eWLAN_PAL_STATUS_E_INVAL;
    }
 

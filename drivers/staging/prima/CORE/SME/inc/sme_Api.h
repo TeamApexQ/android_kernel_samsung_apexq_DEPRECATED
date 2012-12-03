@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -84,14 +84,18 @@ typedef struct _smeConfigParams
 #if defined WLAN_FEATURE_VOWIFI
    tRrmConfigParam  rrmConfig;
 #endif
+#if defined FEATURE_WLAN_LFR
+    tANI_U8   isFastRoamIniFeatureEnabled;
+#endif
 #if defined FEATURE_WLAN_CCX
     tANI_U8   isCcxIniFeatureEnabled;
 #endif
 #if defined WLAN_FEATURE_P2P_INTERNAL
    tP2PConfigParam  p2pConfig;
 #endif
-#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX)
+#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
     tANI_U8   isFastTransitionEnabled;
+    tANI_U8   RoamRssiDiff;
 #endif
 } tSmeConfigParams, *tpSmeConfigParams;
 
@@ -418,7 +422,7 @@ eHalStatus sme_ScanGetResult(tHalHandle hHal, tANI_U8 sessionId, tCsrScanResultF
     \return eHalStatus     
   ---------------------------------------------------------------------------*/
 eHalStatus sme_ScanFlushResult(tHalHandle hHal, tANI_U8 sessionId);
-
+eHalStatus sme_ScanFlushP2PResult(tHalHandle hHal, tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_ScanResultGetFirst
@@ -521,7 +525,7 @@ eHalStatus sme_RoamConnect(tHalHandle hHal, tANI_U8 sessionId, tCsrRoamProfile *
   -------------------------------------------------------------------------------*/
 eHalStatus sme_RoamReassoc(tHalHandle hHal, tANI_U8 sessionId, tCsrRoamProfile *pProfile,
                           tCsrRoamModifyProfileFields modProfileFields,
-                          tANI_U32 *pRoamId);
+                          tANI_U32 *pRoamId, v_BOOL_t fForce);
 
 /* ---------------------------------------------------------------------------
     \fn sme_RoamConnectToLastProfile
@@ -1102,7 +1106,8 @@ extern eHalStatus sme_DeregisterDeviceStateUpdateInd (
   ---------------------------------------------------------------------------*/
 extern eHalStatus sme_WowlAddBcastPattern (
    tHalHandle hHal, 
-   tpSirWowlAddBcastPtrn pattern);
+   tpSirWowlAddBcastPtrn pattern,
+   tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_WowlDelBcastPattern
@@ -1115,7 +1120,8 @@ extern eHalStatus sme_WowlAddBcastPattern (
   ---------------------------------------------------------------------------*/
 extern eHalStatus sme_WowlDelBcastPattern (
    tHalHandle hHal, 
-   tpSirWowlDelBcastPtrn pattern);
+   tpSirWowlDelBcastPtrn pattern,
+   tANI_U8   sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_EnterWowl
@@ -1159,7 +1165,7 @@ extern eHalStatus sme_EnterWowl (
     void (*wakeReasonIndCB) (void *callbackContext, tpSirWakeReasonInd pWakeReasonInd),
     void *wakeReasonIndCBContext,
 #endif // WLAN_WAKEUP_EVENTS
-    tpSirSmeWowlEnterParams wowlEnterParams);
+    tpSirSmeWowlEnterParams wowlEnterParams, tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_ExitWowl
@@ -1589,9 +1595,9 @@ eHalStatus sme_getOemDataRsp(tHalHandle hHal,
 
     \param pAPWPSIES - pointer to a caller allocated object of tCsrRoamAPWPSIES
 
-    \return eHalStatus Â– SUCCESS Â– Roam callback will be called indicate actually results
+    \return eHalStatus – SUCCESS – Roam callback will be called indicate actually results
 
-                         FAILURE or RESOURCES Â– The API finished and failed.
+                         FAILURE or RESOURCES – The API finished and failed.
 
   -------------------------------------------------------------------------------*/
 
@@ -1605,12 +1611,25 @@ eHalStatus sme_RoamUpdateAPWPSIE(tHalHandle, tANI_U8 sessionId, tSirAPWPSIEs *pA
 
     \param pAPSirRSNie - pointer to a caller allocated object of tSirRSNie with WPS/RSN IEs
 
-    \return eHalStatus Â– SUCCESS Â– 
+    \return eHalStatus – SUCCESS – 
 
-                         FAILURE or RESOURCES Â– The API finished and failed.
+                         FAILURE or RESOURCES – The API finished and failed.
 
   -------------------------------------------------------------------------------*/
 eHalStatus sme_RoamUpdateAPWPARSNIEs(tHalHandle hHal, tANI_U8 sessionId, tSirRSNie * pAPSirRSNie);
+
+/* ---------------------------------------------------------------------------
+
+    sme_ChangeMCCBeaconInterval
+
+    \brief To update P2P-GO's beacon Interval. 
+
+    \return eHalStatus – SUCCESS 
+                       – FAILURE or RESOURCES 
+                       – The API finished and failed.
+  -------------------------------------------------------------------------------*/
+eHalStatus sme_ChangeMCCBeaconInterval(tHalHandle hHal, tANI_U8 sessionId);
+
 
 #endif
 
@@ -1619,9 +1638,8 @@ eHalStatus sme_RoamUpdateAPWPARSNIEs(tHalHandle hHal, tANI_U8 sessionId, tSirRSN
   \brief API to send the btAMPstate to FW
   \param  hHal - The handle returned by macOpen.
   \param  btAmpEvent -- btAMP event
-  \return eHalStatus Â– SUCCESS Â–
-
-                         FAILURE or RESOURCES Â– The API finished and failed.
+  \return eHalStatus – SUCCESS –
+                         FAILURE or RESOURCES – The API finished and failed.
 
 --------------------------------------------------------------------------- */
 
@@ -1636,7 +1654,8 @@ eHalStatus sme_sendBTAmpEvent(tHalHandle hHal, tSmeBtAmpEvent btAmpEvent);
     \param  pRequest -  Pointer to the offload request.
     \return eHalStatus
    ---------------------------------------------------------------------------*/
-eHalStatus sme_SetHostOffload (tHalHandle hHal, tpSirHostOffloadReq pRequest);
+eHalStatus sme_SetHostOffload (tHalHandle hHal, tANI_U8 sessionId,
+                                    tpSirHostOffloadReq pRequest);
 
 /* ---------------------------------------------------------------------------
     \fn sme_SetKeepAlive
@@ -1645,7 +1664,8 @@ eHalStatus sme_SetHostOffload (tHalHandle hHal, tpSirHostOffloadReq pRequest);
     \param  pRequest -  Pointer to the Keep Alive request.
     \return eHalStatus
   ---------------------------------------------------------------------------*/
-eHalStatus sme_SetKeepAlive (tHalHandle hHal, tpSirKeepAliveReq pRequest);
+eHalStatus sme_SetKeepAlive (tHalHandle hHal, tANI_U8 sessionId,
+                                  tpSirKeepAliveReq pRequest);
 
 
 /* ---------------------------------------------------------------------------
@@ -1934,7 +1954,8 @@ eHalStatus sme_8023MulticastList(tHalHandle hHal, tpSirRcvFltMcAddrList pMultica
     \param  pRcvPktFilterCfg - Receive Packet Filter parameter
     \return eHalStatus   
   ---------------------------------------------------------------------------*/
-eHalStatus sme_ReceiveFilterSetFilter(tHalHandle hHal, tpSirRcvPktFilterCfgType pRcvPktFilterCfg);
+eHalStatus sme_ReceiveFilterSetFilter(tHalHandle hHal, tpSirRcvPktFilterCfgType pRcvPktFilterCfg,
+                                           tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_GetFilterMatchCount
@@ -1946,7 +1967,8 @@ eHalStatus sme_ReceiveFilterSetFilter(tHalHandle hHal, tpSirRcvPktFilterCfgType 
   ---------------------------------------------------------------------------*/
 eHalStatus sme_GetFilterMatchCount(tHalHandle hHal, 
                                    FilterMatchCountCallback callbackRoutine, 
-                                   void *callbackContext );
+                                   void *callbackContext,
+                                   tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_ReceiveFilterClearFilter
@@ -1956,7 +1978,8 @@ eHalStatus sme_GetFilterMatchCount(tHalHandle hHal,
     \return eHalStatus   
   ---------------------------------------------------------------------------*/
 eHalStatus sme_ReceiveFilterClearFilter(tHalHandle hHal,
-                                        tpSirRcvFltPktClearParam pRcvFltPktClearParam);
+                                        tpSirRcvFltPktClearParam pRcvFltPktClearParam,
+                                        tANI_U8  sessionId);
 #endif // WLAN_FEATURE_PACKET_FILTERING
 /* ---------------------------------------------------------------------------
 
@@ -2012,7 +2035,7 @@ eHalStatus sme_SetTxPerTracking (
     \param  pRequest -  Pointer to the GTK offload request.
     \return eHalStatus
   ---------------------------------------------------------------------------*/
-eHalStatus sme_SetGTKOffload (tHalHandle hHal, tpSirGtkOffloadParams pRequest);
+eHalStatus sme_SetGTKOffload (tHalHandle hHal, tpSirGtkOffloadParams pRequest, tANI_U8 sessionId);
 
 /* ---------------------------------------------------------------------------
     \fn sme_GetGTKOffload
@@ -2021,7 +2044,8 @@ eHalStatus sme_SetGTKOffload (tHalHandle hHal, tpSirGtkOffloadParams pRequest);
     \param  pRequest -  Pointer to the GTK offload response.
     \return eHalStatus
   ---------------------------------------------------------------------------*/
-eHalStatus sme_GetGTKOffload (tHalHandle hHal, GTKOffloadGetInfoCallback callbackRoutine, void *callbackContext );
+eHalStatus sme_GetGTKOffload (tHalHandle hHal, GTKOffloadGetInfoCallback callbackRoutine, 
+                                    void *callbackContext, tANI_U8 sessionId);
 #endif // WLAN_FEATURE_GTK_OFFLOAD
 
 #ifdef WLAN_WAKEUP_EVENTS
@@ -2118,4 +2142,46 @@ eHalStatus sme_SetTmLevel(tHalHandle hHal, v_U16_t newTMLevel, v_U16_t tmMode);
 ---------------------------------------------------------------------------*/
 void sme_featureCapsExchange(tHalHandle hHal);
 
+/*---------------------------------------------------------------------------
+
+  \brief sme_GetDefaultCountryCodeFrmNv() - SME interface to get the default 
+         country code
+  Host and FW.
+
+  \param  hHal - HAL handle for device
+  \param  pCountry - pointer to country code
+
+  \return Sucess or failure
+
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_GetDefaultCountryCodeFrmNv(tHalHandle hHal, tANI_U8 *pCountry);
+
+/*---------------------------------------------------------------------------
+
+  \brief sme_GetCurrentCountryCode() - SME interface to get the current operating
+          country code.
+
+  \param  hHal - HAL handle for device
+  \param  pCountry - pointer to country code
+
+  \return Success or failure
+
+  ---------------------------------------------------------------------------*/
+eHalStatus sme_GetCurrentCountryCode(tHalHandle hHal, tANI_U8 *pCountry);
+
+/* ---------------------------------------------------------------------------
+    \fn sme_transportDebug
+    \brief  Dynamically monitoring Transport channels
+            Private IOCTL will querry transport channel status if driver loaded
+    \param  displaySnapshot Dispaly transport cahnnel snapshot option
+    \param  toggleStallDetect Enable stall detect feature
+                              This feature will take effect to data performance
+                              Not integrate till fully verification
+    \- return NONE
+    -------------------------------------------------------------------------*/
+void sme_transportDebug
+(
+   v_BOOL_t  displaySnapshot,
+   v_BOOL_t  toggleStallDetect
+);
 #endif //#if !defined( __SME_API_H )

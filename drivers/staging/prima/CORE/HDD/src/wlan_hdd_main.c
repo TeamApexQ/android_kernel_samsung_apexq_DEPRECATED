@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -141,14 +141,29 @@ int wlan_hdd_ftm_start(hdd_context_t *pAdapter);
 /* the Android framework expects this param even though we don't use it */
 #define BUF_LEN 20
 static char fwpath[BUF_LEN];
-module_param_string(fwpath, fwpath, BUF_LEN,
-                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+#ifndef MODULE
+static int wlan_hdd_inited;
+#endif
 
+/*
+ * The rate at which the driver sends RESTART event to supplicant
+ * once the function 'vos_wlanRestart()' is called
+ *
+ */
+#define WLAN_HDD_RESTART_RETRY_DELAY_MS 5000  /* 5 second */
+#define WLAN_HDD_RESTART_RETRY_MAX_CNT  5     /* 5 retries */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
 static struct wake_lock wlan_wake_lock;
+#endif
 /* set when SSR is needed after unload */
-static v_U8_t      isSsrRequired;
+static e_hdd_ssr_required isSsrRequired = HDD_SSR_NOT_REQUIRED;
 
 //internal function declaration
+static VOS_STATUS wlan_hdd_framework_restart(hdd_context_t *pHddCtx);
+static void wlan_hdd_restart_init(hdd_context_t *pHddCtx);
+static void wlan_hdd_restart_deinit(hdd_context_t *pHddCtx);
+void wlan_hdd_restart_timer_cb(v_PVOID_t usrDataForCallback);
+
 v_U16_t hdd_select_queue(struct net_device *dev,
     struct sk_buff *skb);
 
@@ -165,7 +180,8 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
                                          void *ndev)
 {
    struct net_device *dev = ndev;
-   hdd_adapter_t *pAdapter = NULL;
+   hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
+   hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX( pAdapter );
 #ifdef WLAN_BTAMP_FEATURE
    VOS_STATUS status;
    hdd_context_t *pHddCtx;
@@ -173,7 +189,7 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
 
    //Make sure that this callback corresponds to our device.
    if((strncmp( dev->name, "wlan", 4 )) && 
-      (strncmp( dev->name, "p2p-wlan", 8))
+      (strncmp( dev->name, "p2p", 3))
      )
       return NOTIFY_DONE;
 
@@ -182,7 +198,6 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
        return NOTIFY_DONE;
 #endif
 
-   pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
 
    if(NULL == pAdapter)
    {
@@ -207,37 +222,33 @@ static int hdd_netdev_notifier_call(struct notifier_block * nb,
         break;
 
    case NETDEV_CHANGE:
-        if(VOS_STA_MODE == hdd_get_conparam()) 
-        {
-            if(TRUE == pAdapter->isLinkUpSvcNeeded)
-               complete(&pAdapter->linkup_event_var);
-           }
+        if(TRUE == pAdapter->isLinkUpSvcNeeded)
+           complete(&pAdapter->linkup_event_var);
         break;
 
    case NETDEV_GOING_DOWN:
-        if( pAdapter->scan_info.mScanPending != FALSE )
+        if( pHddCtx->scan_info.mScanPending != FALSE )
         { 
            int result;
-           INIT_COMPLETION(pAdapter->abortscan_event_var);
+           INIT_COMPLETION(pHddCtx->scan_info.abortscan_event_var);
            hdd_abort_mac_scan(pAdapter->pHddCtx);
            result = wait_for_completion_interruptible_timeout(
-                               &pAdapter->abortscan_event_var,
+                               &pHddCtx->scan_info.abortscan_event_var,
                                msecs_to_jiffies(WLAN_WAIT_TIME_ABORTSCAN));
            if(!result)
            {
               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                          "%s: Timeout occured while waiting for abortscan" ,
-                          __FUNCTION__);
+                          __func__);
            }
         }
         else
         {
            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-               "%s: Scan is not Pending from user" , __FUNCTION__);
+               "%s: Scan is not Pending from user" , __func__);
         }
 #ifdef WLAN_BTAMP_FEATURE
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,"%s: disabling AMP", __FUNCTION__);
-        pHddCtx = WLAN_HDD_GET_CTX( pAdapter );
+        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,"%s: disabling AMP", __func__);
         status = WLANBAP_StopAmp();
         if(VOS_STATUS_SUCCESS != status )
         {
@@ -279,9 +290,17 @@ extern void unregister_wlan_suspend(void);
 void hdd_unregister_mcast_bcast_filter(hdd_context_t *pHddCtx);
 void hdd_register_mcast_bcast_filter(hdd_context_t *pHddCtx);
 #endif
-#ifdef WLAN_SOFTAP_FEATURE
 //variable to hold the insmod parameters
-static int con_mode = 0;
+static int con_mode;
+#ifndef MODULE
+/* current con_mode - used only for statically linked driver
+ * con_mode is changed by userspace to indicate a mode change which will
+ * result in calling the module exit and init functions. The module
+ * exit function will clean up based on the value of con_mode prior to it
+ * being changed by userspace. So curr_con_mode records the current con_mode 
+ * for exit when con_mode becomes the next mode for init
+ */
+static int curr_con_mode;
 #endif
 
 #ifdef FEATURE_WLAN_INTEGRATED_SOC
@@ -300,7 +319,6 @@ static int con_mode = 0;
   --------------------------------------------------------------------------*/
 static void hdd_wdi_trace_enable(wpt_moduleid moduleId, v_U32_t bitmask)
 {
-#ifdef WLAN_DEBUG
    wpt_tracelevel level;
 
    /* if the bitmask is the default value, then a bitmask was not
@@ -313,6 +331,7 @@ static void hdd_wdi_trace_enable(wpt_moduleid moduleId, v_U32_t bitmask)
 
    /* a mask was specified.  start by disabling all logging */
    wpalTraceSetLevel(moduleId, eWLAN_PAL_TRACE_LEVEL_NONE, 0);
+
    /* now cycle through the bitmask until all "set" bits are serviced */
    level = eWLAN_PAL_TRACE_LEVEL_FATAL;
    while (0 != bitmask)
@@ -324,7 +343,6 @@ static void hdd_wdi_trace_enable(wpt_moduleid moduleId, v_U32_t bitmask)
       level++;
       bitmask >>= 1;
    }
-#endif
 }
 #endif /* FEATURE_WLAN_INTEGRATED_SOC */
 
@@ -338,12 +356,12 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
    if (NULL == pAdapter)
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD adapter context is Null", __FUNCTION__);
+         "%s: HDD adapter context is Null", __func__);
       ret = -ENODEV;
       goto exit; 
    }
 
-   if ((!ifr) && (!ifr->ifr_data))
+   if ((!ifr) || (!ifr->ifr_data))
    {
        ret = -EINVAL;
        goto exit; 
@@ -359,7 +377,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
    if (!command)
    {
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-          "%s: failed to allocate memory\n", __FUNCTION__);
+          "%s: failed to allocate memory\n", __func__);
        ret = -ENOMEM;
        goto exit;
    }
@@ -375,7 +393,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
        hdd_context_t *pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
 
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                   "***Received %s cmd from Wi-Fi GUI***", command);
+                  "%s: Received %s cmd from Wi-Fi GUI***", __func__, command);
 
        if (strncmp(command, "P2P_DEV_ADDR", 12) == 0 )
        {
@@ -383,11 +401,11 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
                                                            sizeof(tSirMacAddr)))
            {
                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-                  "%s: failed to copy data to user buffer\n", __FUNCTION__);
+                  "%s: failed to copy data to user buffer\n", __func__);
                ret = -EFAULT;
            }
        }
-       if(strncmp(priv_data.buf, "SETBAND", 7) == 0)
+       else if(strncmp(priv_data.buf, "SETBAND", 7) == 0)
        {
            tANI_U8 *ptr = (tANI_U8*)priv_data.buf ;
            int ret = 0 ;
@@ -396,12 +414,44 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
    
            /* First 8 bytes will have "SETBAND " and 
             * 9 byte will have band setting value */
-           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                    "%s: SetBandCommand Info  comm %s UL %d, TL %d", __FUNCTION__, priv_data.buf, priv_data.used_len, priv_data.total_len);
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                    "%s: SetBandCommand Info  comm %s UL %d, TL %d", __func__, priv_data.buf, priv_data.used_len, priv_data.total_len);
         
            /* Change band request received */
            ret = hdd_setBand_helper(dev, ptr);   
        } 
+       else if ( strncasecmp(command, "COUNTRY", 7) == 0 )
+       {
+           char *country_code;
+
+           country_code = command + 8;
+           ret = (int)sme_ChangeCountryCode(pHddCtx->hHal, NULL, country_code,
+                    pAdapter, pHddCtx->pvosContext);
+           if( 0 != ret )
+           {
+               VOS_TRACE( VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+                       "%s: SME Change Country code fail ret=%d\n",__func__, ret);
+
+           }
+       }
+       /*
+          command should be a string having format
+          SET_SAP_CHANNEL_LIST <num of channels> <the channels seperated by spaces>
+       */
+       else if(strncmp(priv_data.buf, "SET_SAP_CHANNEL_LIST", 20) == 0)
+       {
+           tANI_U8 *ptr = (tANI_U8*)priv_data.buf;
+
+           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                      " Received Command to Set Preferred Channels for SAP in %s", __func__);
+
+           ret = sapSetPreferredChannel(dev, ptr);
+       }
+       else {
+           hddLog( VOS_TRACE_LEVEL_WARN, "%s: Unsupported GUI command %s",
+                   __func__, command);
+       }
+
    }
 exit:
    if (command)
@@ -433,7 +483,7 @@ int hdd_open (struct net_device *dev)
    if (NULL == pAdapter) 
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD adapter context is Null", __FUNCTION__);
+         "%s: HDD adapter context is Null", __func__);
       return -ENODEV;
    }
    
@@ -441,7 +491,7 @@ int hdd_open (struct net_device *dev)
    if (NULL == pHddCtx)
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD context is Null", __FUNCTION__);
+         "%s: HDD context is Null", __func__);
       return -ENODEV;
    }
 
@@ -476,7 +526,7 @@ int hdd_open (struct net_device *dev)
    if (hdd_connIsConnected(WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))) 
    {
        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                 "%s: Enabling Tx Queues", __FUNCTION__);
+                 "%s: Enabling Tx Queues", __func__);
        /* Enable TX queues only when we are connected */
        netif_tx_start_all_queues(dev);
    }
@@ -490,8 +540,8 @@ int hdd_mon_open (struct net_device *dev)
 
    if(pAdapter == NULL) {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD adapter context is Null", __FUNCTION__);
-      return -1;
+         "%s: HDD adapter context is Null", __func__);
+      return -EINVAL;
    }
 
    netif_start_queue(dev);
@@ -523,7 +573,7 @@ int hdd_stop (struct net_device *dev)
    if (NULL == pAdapter)
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD adapter context is Null", __FUNCTION__);
+         "%s: HDD adapter context is Null", __func__);
       return -ENODEV;
    }
 
@@ -531,7 +581,7 @@ int hdd_stop (struct net_device *dev)
    if (NULL == pHddCtx)
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-         "%s: HDD context is Null", __FUNCTION__);
+         "%s: HDD context is Null", __func__);
       return -ENODEV;
    }
 
@@ -772,7 +822,7 @@ void hdd_full_pwr_cbk(void *callbackContext, eHalStatus status)
 {
    hdd_context_t *pHddCtx = (hdd_context_t*)callbackContext;
 
-   hddLog(VOS_TRACE_LEVEL_ERROR,"HDD full Power callback status = %d", status);
+   hddLog(VOS_TRACE_LEVEL_INFO_HIGH,"HDD full Power callback status = %d", status);
    if(&pHddCtx->full_pwr_comp_var)
    {
       complete(&pHddCtx->full_pwr_comp_var);
@@ -1077,7 +1127,6 @@ hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMacAddr ma
       init_completion(&pAdapter->linkup_event_var);
       init_completion(&pAdapter->cancel_rem_on_chan_var);
       init_completion(&pAdapter->rem_on_chan_ready_event);
-      init_completion(&pAdapter->abortscan_event_var);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
       init_completion(&pAdapter->offchannel_tx_event);
 #endif
@@ -1086,8 +1135,6 @@ hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMacAddr ma
 #endif
       init_completion(&pHddCtx->mc_sus_event_var);
       init_completion(&pHddCtx->tx_sus_event_var);
-
-      init_completion(&pAdapter->scan_info.scan_req_completion_event);
 
       pAdapter->isLinkUpSvcNeeded = FALSE; 
       pAdapter->higherDtimTransition = eANI_BOOLEAN_TRUE;
@@ -1123,7 +1170,7 @@ VOS_STATUS hdd_register_interface( hdd_adapter_t *pAdapter, tANI_U8 rtnl_lock_he
 
    if( rtnl_lock_held )
    {
-      if (strchr(pWlanDev->name, '%')) {
+     if (strnchr(pWlanDev->name, strlen(pWlanDev->name), '%')) {
          if( dev_alloc_name(pWlanDev, pWlanDev->name) < 0 )
          {
             hddLog(VOS_TRACE_LEVEL_ERROR,"%s:Failed:dev_alloc_name",__func__);
@@ -1638,6 +1685,11 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
 #endif
          /* This workqueue will be used to transmit management packet over
           * monitor interface. */
+         if (NULL == pAdapter->sessionCtx.monitor.pAdapterForTx) {
+             hddLog(VOS_TRACE_LEVEL_ERROR,"%s:Failed:hdd_get_adapter",__func__);
+             return NULL;
+         }
+
          INIT_WORK(&pAdapter->sessionCtx.monitor.pAdapterForTx->monTxWorkQueue,
                    hdd_mon_tx_work_queue);
 #endif
@@ -1711,8 +1763,13 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
          WLANTL_ConfigureSwFrameTXXlationForAll(pHddCtx->pvosContext, TRUE);
       }
 #endif
+      //Initialize the WoWL service
+      if(!hdd_init_wowl(pAdapter))
+      {
+          hddLog(VOS_TRACE_LEVEL_FATAL,"%s: hdd_init_wowl failed",__func__);
+          goto err_free_netdev;
+      }
    }
-
    return pAdapter;
 
 err_free_netdev:
@@ -1907,12 +1964,12 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
                if (!VOS_IS_STATUS_SUCCESS(status))
                {
                   hddLog(LOGE, "%s: failure waiting for WLANSAP_StopBss",
-                         __FUNCTION__);
+                         __func__);
                }
             }
             else
             {
-               hddLog(LOGE, "%s: failure in WLANSAP_StopBss", __FUNCTION__);
+               hddLog(LOGE, "%s: failure in WLANSAP_StopBss", __func__);
             }
             clear_bit(SOFTAP_BSS_STARTED, &pAdapter->event_flags);
 
@@ -1922,7 +1979,7 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
             {
                hddLog(LOGE,
                       "%s: Failed to set WNI_CFG_PROBE_RSP_BCN_ADDNIE_FLAG",
-                      __FUNCTION__);
+                      __func__);
             }
 
             if ( eHAL_STATUS_FAILURE == ccmCfgSetInt((WLAN_HDD_GET_CTX(pAdapter))->hHal,
@@ -2033,8 +2090,8 @@ VOS_STATUS hdd_start_all_adapters( hdd_context_t *pHddCtx )
             hdd_init_station_mode(pAdapter);
             /* Open the gates for HDD to receive Wext commands */
             pAdapter->isLinkUpSvcNeeded = FALSE; 
-            pAdapter->scan_info.mScanPending = FALSE;
-            pAdapter->scan_info.waitScanResult = FALSE;
+            pHddCtx->scan_info.mScanPending = FALSE;
+            pHddCtx->scan_info.waitScanResult = FALSE;
 
             //Trigger the initial scan
             hdd_wlan_initial_scan(pAdapter);
@@ -2133,13 +2190,17 @@ VOS_STATUS hdd_reconnect_all_adapters( hdd_context_t *pHddCtx )
    return VOS_STATUS_SUCCESS;
 }
 
-v_U8_t hdd_is_ssr_required( void)
+bool hdd_is_ssr_required( void)
 {
-    return isSsrRequired;
+    return (isSsrRequired == HDD_SSR_REQUIRED);
 }
 
-void hdd_set_ssr_required( v_U8_t value)
+/* Once SSR is disabled then it cannot be set. */
+void hdd_set_ssr_required( e_hdd_ssr_required value)
 {
+    if (HDD_SSR_DISABLED == isSsrRequired)
+        return;
+
     isSsrRequired = value;
 }
 
@@ -2413,25 +2474,25 @@ static void hdd_set_multicast_list(struct net_device *dev)
    if (NULL == pHddCtx)
    {
       hddLog(VOS_TRACE_LEVEL_ERROR,
-            "%s: HDD context is Null", __FUNCTION__);
+            "%s: HDD context is Null", __func__);
       return;
    }
 
    if (dev->flags & IFF_ALLMULTI)
    {
       hddLog(VOS_TRACE_LEVEL_INFO,
-            "%s: allow all multicast frames", __FUNCTION__);
+            "%s: allow all multicast frames", __func__);
       pHddCtx->mc_addr_list.mc_cnt = 0;
    }
    else 
    {
       mc_count = netdev_mc_count(dev);
       hddLog(VOS_TRACE_LEVEL_INFO,
-            "%s: mc_count = %u", __FUNCTION__, mc_count);
+            "%s: mc_count = %u", __func__, mc_count);
       if (mc_count > WLAN_HDD_MAX_MC_ADDR_LIST)
       {
          hddLog(VOS_TRACE_LEVEL_INFO,
-               "%s: No free filter available; allow all multicast frames", __FUNCTION__);
+               "%s: No free filter available; allow all multicast frames", __func__);
          pHddCtx->mc_addr_list.mc_cnt = 0;
          return;
       }
@@ -2568,7 +2629,7 @@ static void hdd_full_power_callback(void *callbackContext, eHalStatus status)
    {
       hddLog(VOS_TRACE_LEVEL_ERROR,
              "%s: Bad param, context [%p]",
-             __FUNCTION__, callbackContext);
+             __func__, callbackContext);
       return;
    }
 
@@ -2582,7 +2643,7 @@ static void hdd_full_power_callback(void *callbackContext, eHalStatus status)
       /* the caller presumably timed out so there is nothing we can do */
       hddLog(VOS_TRACE_LEVEL_WARN,
              "%s: Invalid context, magic [%08x]",
-              __FUNCTION__, pContext->magic);
+              __func__, pContext->magic);
       return;
    }
 
@@ -2621,6 +2682,9 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
    long lrc;
 
    ENTER();
+
+   // Unloading, restart logic is no more required.
+   wlan_hdd_restart_deinit(pHddCtx);
 
 #ifdef CONFIG_CFG80211
 #ifdef WLAN_SOFTAP_FEATURE
@@ -2741,7 +2805,7 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
          if (lrc <= 0)
          {
             hddLog(VOS_TRACE_LEVEL_ERROR, "%s: %s while requesting full power",
-                   __FUNCTION__, (0 == lrc) ? "timeout" : "interrupt");
+                   __func__, (0 == lrc) ? "timeout" : "interrupt");
             /* there is a race condition such that the callback
                function could be executing at the same time we are. of
                primary concern is if the callback function had already
@@ -2756,7 +2820,7 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
       {
          hddLog(VOS_TRACE_LEVEL_ERROR,
                 "%s: Request for Full Power failed, status %d",
-                __FUNCTION__, halStatus);
+                __func__, halStatus);
          VOS_ASSERT(0);
          /* continue -- need to clean up as much as possible */
       }
@@ -2864,7 +2928,11 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
          "%s: Failed to close VOSS Scheduler",__func__);
       VOS_ASSERT( VOS_IS_STATUS_SUCCESS( vosStatus ) );
    }
-   
+
+#ifdef WLAN_FEATURE_HOLD_RX_WAKELOCK
+   /* Destroy the wake lock */
+   wake_lock_destroy(&pHddCtx->rx_wake_lock);
+#endif
 
    //Close VOSS
    //This frees pMac(HAL) context. There should not be any call that requires pMac access after this.
@@ -2924,7 +2992,7 @@ free_hdd_ctx:
    if (hdd_is_ssr_required())
    {
        /* WDI timeout had happened during unload, so SSR is needed here */
-       subsystem_restart("riva");
+       subsystem_restart("wcnss");
        msleep(5000);
    }
    hdd_set_ssr_required (VOS_FALSE);
@@ -3107,12 +3175,154 @@ void wlan_hdd_enable_deepsleep(v_VOID_t * pVosContext)
 /* wake lock APIs for HDD */
 void hdd_prevent_suspend(void)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
     wake_lock(&wlan_wake_lock);
+#else
+    wcnss_prevent_suspend();
+#endif
 }
 
 void hdd_allow_suspend(void)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
     wake_unlock(&wlan_wake_lock);
+#else
+    wcnss_allow_suspend();
+#endif
+}
+
+void hdd_allow_suspend_timeout(v_U32_t timeout)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
+    wake_lock_timeout(&wlan_wake_lock, timeout);
+#else
+    /* Do nothing as there is no API in wcnss for timeout*/
+#endif
+}
+
+/**---------------------------------------------------------------------------
+
+  \brief hdd_exchange_version_and_caps() - HDD function to exchange version and capability
+                                                                 information between Host and Riva
+
+  This function gets reported version of FW
+  It also finds the version of Riva headers used to compile the host
+  It compares the above two and prints a warning if they are different
+  It gets the SW and HW version string
+  Finally, it exchanges capabilities between host and Riva i.e. host and riva exchange a msg
+  indicating the features they support through a bitmap
+
+  \param  - pHddCtx - Pointer to HDD context
+
+  \return -  void
+
+  --------------------------------------------------------------------------*/
+
+void hdd_exchange_version_and_caps(hdd_context_t *pHddCtx)
+{
+
+   tSirVersionType versionCompiled;
+   tSirVersionType versionReported;
+   tSirVersionString versionString;
+   tANI_U8 fwFeatCapsMsgSupported = 0;
+   VOS_STATUS vstatus;
+
+   /* retrieve and display WCNSS version information */
+   do {
+
+      vstatus = sme_GetWcnssWlanCompiledVersion(pHddCtx->hHal,
+                                                &versionCompiled);
+      if (!VOS_IS_STATUS_SUCCESS(vstatus))
+      {
+         hddLog(VOS_TRACE_LEVEL_FATAL,
+                "%s: unable to retrieve WCNSS WLAN compiled version",
+                __func__);
+         break;
+      }
+
+      vstatus = sme_GetWcnssWlanReportedVersion(pHddCtx->hHal,
+                                                &versionReported);
+      if (!VOS_IS_STATUS_SUCCESS(vstatus))
+      {
+         hddLog(VOS_TRACE_LEVEL_FATAL,
+                "%s: unable to retrieve WCNSS WLAN reported version",
+                __func__);
+         break;
+      }
+
+      if ((versionCompiled.major != versionReported.major) ||
+          (versionCompiled.minor != versionReported.minor) ||
+          (versionCompiled.version != versionReported.version) ||
+          (versionCompiled.revision != versionReported.revision))
+      {
+         pr_err("%s: WCNSS WLAN Version %u.%u.%u.%u, "
+                "Host expected %u.%u.%u.%u\n",
+                WLAN_MODULE_NAME,
+                (int)versionReported.major,
+                (int)versionReported.minor,
+                (int)versionReported.version,
+                (int)versionReported.revision,
+                (int)versionCompiled.major,
+                (int)versionCompiled.minor,
+                (int)versionCompiled.version,
+                (int)versionCompiled.revision);
+      }
+      else
+      {
+         pr_info("%s: WCNSS WLAN version %u.%u.%u.%u\n",
+                 WLAN_MODULE_NAME,
+                 (int)versionReported.major,
+                 (int)versionReported.minor,
+                 (int)versionReported.version,
+                 (int)versionReported.revision);
+      }
+
+      vstatus = sme_GetWcnssSoftwareVersion(pHddCtx->hHal,
+                                            versionString,
+                                            sizeof(versionString));
+      if (!VOS_IS_STATUS_SUCCESS(vstatus))
+      {
+         hddLog(VOS_TRACE_LEVEL_FATAL,
+                "%s: unable to retrieve WCNSS software version string",
+                __func__);
+         break;
+      }
+
+      pr_info("%s: WCNSS software version %s\n",
+              WLAN_MODULE_NAME, versionString);
+
+      vstatus = sme_GetWcnssHardwareVersion(pHddCtx->hHal,
+                                            versionString,
+                                            sizeof(versionString));
+      if (!VOS_IS_STATUS_SUCCESS(vstatus))
+      {
+         hddLog(VOS_TRACE_LEVEL_FATAL,
+                "%s: unable to retrieve WCNSS hardware version string",
+                __func__);
+         break;
+      }
+
+      pr_info("%s: WCNSS hardware version %s\n",
+              WLAN_MODULE_NAME, versionString);
+
+      /* 1.Check if FW version is greater than 0.1.1.0. Only then send host-FW capability exchange message 
+         2.Host-FW capability exchange message  is only present on riva 1.1 so 
+            send the message only if it the riva is 1.1
+            minor numbers for different riva branches:
+                0 -> (1.0)Mainline Build
+                1 -> (1.1)Mainline Build
+                2->(1.04) Stability Build
+       */
+      if (((versionReported.major>0) || (versionReported.minor>1) || 
+         ((versionReported.minor>=1) && (versionReported.version>=1)))
+         && ((versionReported.major == 1) && (versionReported.minor >= 1)))
+         fwFeatCapsMsgSupported = 1;
+ 
+      if (fwFeatCapsMsgSupported)
+         sme_featureCapsExchange(pHddCtx->hHal);
+
+   } while (0);
+
 }
 
 /**---------------------------------------------------------------------------
@@ -3123,7 +3333,7 @@ void hdd_allow_suspend(void)
 
   \param  - dev - Pointer to the underlying device
 
-  \return -  0 for success -1 for failure
+  \return -  0 for success, < 0 for failure
 
   --------------------------------------------------------------------------*/
 
@@ -3157,7 +3367,7 @@ int hdd_wlan_startup(struct device *dev )
    if(wiphy == NULL)
    {
       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: cfg80211 init failed", __func__);
-      return -1;
+      return -EIO;
    }
 
    pHddCtx = wiphy_priv(wiphy);
@@ -3168,7 +3378,7 @@ int hdd_wlan_startup(struct device *dev )
    if(pHddCtx == NULL)
    {
       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: cfg80211 init failed", __func__);
-      return -1;
+      return -ENOMEM;
    }
 
 #endif   
@@ -3203,7 +3413,8 @@ int hdd_wlan_startup(struct device *dev )
    init_completion(&pHddCtx->full_pwr_comp_var);
    init_completion(&pHddCtx->standby_comp_var);
    init_completion(&pHddCtx->req_bmps_comp_var);
-
+   init_completion(&pHddCtx->scan_info.scan_req_completion_event);
+   init_completion(&pHddCtx->scan_info.abortscan_event_var);
 
    hdd_list_init( &pHddCtx->hddAdapters, MAX_NUMBER_OF_ADAPTERS );
 
@@ -3346,6 +3557,17 @@ int hdd_wlan_startup(struct device *dev )
       goto err_vosclose;
    }
 
+#ifdef FEATURE_WLAN_INTEGRATED_SOC
+      /* Vos preStart is calling */
+      /* vos preStart which does cfg download should be called before set sme config which accesses/sets some cfgs */
+      status = vos_preStart( pHddCtx->pvosContext );
+      if ( !VOS_IS_STATUS_SUCCESS( status ) )
+      {
+         hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_preStart failed",__func__);
+         goto err_vosclose;
+      }
+#endif
+
    // Set the SME configuration parameters...
    status = hdd_set_sme_config( pHddCtx );
 
@@ -3359,19 +3581,9 @@ int hdd_wlan_startup(struct device *dev )
    status = hdd_wmm_init(pHddCtx);
    if (!VOS_IS_STATUS_SUCCESS(status))
    {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __FUNCTION__);
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __func__);
       goto err_vosclose;
    }
-
-#ifdef FEATURE_WLAN_INTEGRATED_SOC
-   /* Vos preStart is calling */
-   status = vos_preStart( pHddCtx->pvosContext );
-   if ( !VOS_IS_STATUS_SUCCESS( status ) )
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_preStart failed",__func__);
-      goto err_vosclose;
-   }
-#endif
 
 #ifdef FEATURE_WLAN_INTEGRATED_SOC
    /* In the integrated architecture we update the configuration from
@@ -3455,7 +3667,7 @@ int hdd_wlan_startup(struct device *dev )
       {
          hddLog(VOS_TRACE_LEVEL_ERROR,"%s: Failed to set MAC Address. "
                 "HALStatus is %08d [x%08x]",__func__, halStatus, halStatus );
-         return VOS_STATUS_E_FAILURE;
+         goto err_vosclose;
       }
    }
 #endif // FEATURE_WLAN_INTEGRATED_SOC
@@ -3469,107 +3681,8 @@ int hdd_wlan_startup(struct device *dev )
       goto err_vosclose;
    }
 
-#ifdef FEATURE_WLAN_INTEGRATED_SOC
-   /* retrieve and display WCNSS version information */
-   do {
-      tSirVersionType versionCompiled;
-      tSirVersionType versionReported;
-      tSirVersionString versionString;
-      tANI_U8 fwFeatCapsMsgSupported = 0;
-      VOS_STATUS vstatus;
-
-      vstatus = sme_GetWcnssWlanCompiledVersion(pHddCtx->hHal,
-                                                &versionCompiled);
-      if (!VOS_IS_STATUS_SUCCESS(vstatus))
-      {
-         hddLog(VOS_TRACE_LEVEL_FATAL,
-                "%s: unable to retrieve WCNSS WLAN compiled version",
-                __FUNCTION__);
-         break;
-      }
-
-      vstatus = sme_GetWcnssWlanReportedVersion(pHddCtx->hHal,
-                                                &versionReported);
-      if (!VOS_IS_STATUS_SUCCESS(vstatus))
-      {
-         hddLog(VOS_TRACE_LEVEL_FATAL,
-                "%s: unable to retrieve WCNSS WLAN reported version",
-                __FUNCTION__);
-         break;
-      }
-
-      if ((versionCompiled.major != versionReported.major) ||
-          (versionCompiled.minor != versionReported.minor) ||
-          (versionCompiled.version != versionReported.version) ||
-          (versionCompiled.revision != versionReported.revision))
-      {
-         pr_err("%s: WCNSS WLAN Version %u.%u.%u.%u, "
-                "Host expected %u.%u.%u.%u\n",
-                WLAN_MODULE_NAME,
-                (int)versionReported.major,
-                (int)versionReported.minor,
-                (int)versionReported.version,
-                (int)versionReported.revision,
-                (int)versionCompiled.major,
-                (int)versionCompiled.minor,
-                (int)versionCompiled.version,
-                (int)versionCompiled.revision);
-      }
-      else
-      {
-         pr_info("%s: WCNSS WLAN version %u.%u.%u.%u\n",
-                 WLAN_MODULE_NAME,
-                 (int)versionReported.major,
-                 (int)versionReported.minor,
-                 (int)versionReported.version,
-                 (int)versionReported.revision);
-      }
-
-      vstatus = sme_GetWcnssSoftwareVersion(pHddCtx->hHal,
-                                            versionString,
-                                            sizeof(versionString));
-      if (!VOS_IS_STATUS_SUCCESS(vstatus))
-      {
-         hddLog(VOS_TRACE_LEVEL_FATAL,
-                "%s: unable to retrieve WCNSS software version string",
-                __FUNCTION__);
-         break;
-      }
-
-      pr_info("%s: WCNSS software version %s\n",
-              WLAN_MODULE_NAME, versionString);
-
-      vstatus = sme_GetWcnssHardwareVersion(pHddCtx->hHal,
-                                            versionString,
-                                            sizeof(versionString));
-      if (!VOS_IS_STATUS_SUCCESS(vstatus))
-      {
-         hddLog(VOS_TRACE_LEVEL_FATAL,
-                "%s: unable to retrieve WCNSS hardware version string",
-                __FUNCTION__);
-         break;
-      }
-
-      pr_info("%s: WCNSS hardware version %s\n",
-              WLAN_MODULE_NAME, versionString);
-
-      /* 1.Check if FW version is greater than 0.1.1.0. Only then send host-FW capability exchange message 
-              2.Host-FW capability exchange message  is only present on riva 1.1 so 
-                send the message only if it the riva is 1.1
-                minor numbers for different riva branches:
-                0 -> (1.0)Mainline Build
-                1 -> (1.1)Mainline Build
-                2->(1.04) Stability Build
-         */
-      if (((versionReported.major>0) || (versionReported.minor>1) || 
-         ((versionReported.minor>=1) && (versionReported.version>=1)))
-         && ((versionReported.major == 1) && (versionReported.minor == 1)))
-         fwFeatCapsMsgSupported = 1;
-      if (fwFeatCapsMsgSupported)
-         sme_featureCapsExchange(pHddCtx->hHal);
-   } while (0);
-
-#endif // FEATURE_WLAN_INTEGRATED_SOC
+   /* Exchange capability info between Host and FW and also get versioning info from FW */
+   hdd_exchange_version_and_caps(pHddCtx);
 
    status = hdd_post_voss_start_config( pHddCtx );
    if ( !VOS_IS_STATUS_SUCCESS( status ) )
@@ -3593,31 +3706,26 @@ int hdd_wlan_startup(struct device *dev )
      if (pAdapter != NULL)
      {
 #ifdef WLAN_FEATURE_P2P
-         if ( pHddCtx->cfg_ini->isP2pDeviceAddrAdministrated )
+         tANI_U8* p2p_dev_addr = wlan_hdd_get_intf_addr(pHddCtx);
+         if (p2p_dev_addr != NULL)
          {
-             vos_mem_copy( pHddCtx->p2pDeviceAddress.bytes,
-                       pHddCtx->cfg_ini->intfMacAddr[0].bytes,
-                       sizeof(tSirMacAddr));
-             /* Generate the P2P Device Address.  This consists of the device's
-              * primary MAC address with the locally administered bit set.
-              */
-             pHddCtx->p2pDeviceAddress.bytes[0] |= 0x02;
+             vos_mem_copy(&pHddCtx->p2pDeviceAddress.bytes[0],
+                           p2p_dev_addr, VOS_MAC_ADDR_SIZE);
+
+             if ( pHddCtx->cfg_ini->isP2pDeviceAddrAdministrated )
+             {
+                 /* Generate the P2P Device Address.  This consists of the device's
+                  * primary MAC address with the locally administered bit set.
+                  */
+                 pHddCtx->p2pDeviceAddress.bytes[0] |= 0x02;
+             }
          }
          else
          {
-             tANI_U8* p2p_dev_addr = wlan_hdd_get_intf_addr(pHddCtx);
-             if (p2p_dev_addr != NULL)
-             {
-                vos_mem_copy(&pHddCtx->p2pDeviceAddress.bytes[0],
-                             p2p_dev_addr, VOS_MAC_ADDR_SIZE);
-             }
-             else
-             {
-                hddLog(VOS_TRACE_LEVEL_FATAL,
-                    "%s: Failed to allocate mac_address for p2p_device",
-                    __FUNCTION__);
-                goto err_close_adapter;
-             }
+             hddLog(VOS_TRACE_LEVEL_FATAL,
+                 "%s: Failed to allocate mac_address for p2p_device",
+                 __func__);
+             goto err_close_adapter;
          }
 
          pP2pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_P2P_DEVICE, "p2p%d",
@@ -3626,7 +3734,7 @@ int hdd_wlan_startup(struct device *dev )
          {
              hddLog(VOS_TRACE_LEVEL_FATAL,
                 "%s: Failed to do hdd_open_adapter for P2P Device Interface",
-                __FUNCTION__);
+                __func__);
              goto err_close_adapter;
          }
 #endif
@@ -3750,13 +3858,6 @@ int hdd_wlan_startup(struct device *dev )
    }
 #endif
 
-   //Initialize the WoWL service
-   if(!hdd_init_wowl(pHddCtx))
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL,"%s: hdd_init_wowl failed",__func__);
-      goto err_nl_srv;
-   }
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
    hdd_register_mcast_bcast_filter(pHddCtx);
 #endif
@@ -3765,7 +3866,10 @@ int hdd_wlan_startup(struct device *dev )
    if (VOS_STA_SAP_MODE != hdd_get_conparam())
 #endif
    {
-      wlan_hdd_cfg80211_post_voss_start(pP2pAdapter);
+      /* Action frame registered in one adapter which will
+       * applicable to all interfaces 
+       */
+      wlan_hdd_cfg80211_post_voss_start(pAdapter);
    }
 #endif
 
@@ -3773,11 +3877,21 @@ int hdd_wlan_startup(struct device *dev )
 
    pHddCtx->isLoadUnloadInProgress = FALSE;
 
-   vos_event_init(&pAdapter->scan_info.scan_finished_event);
-   pAdapter->scan_info.scan_pending_option = WEXT_SCAN_PENDING_GIVEUP;
+#ifdef WLAN_FEATURE_HOLD_RX_WAKELOCK
+   /* Initialize the wake lcok */
+   wake_lock_init(&pHddCtx->rx_wake_lock,
+           WAKE_LOCK_SUSPEND,
+           "qcom_rx_wakelock");
+#endif
+
+   vos_event_init(&pHddCtx->scan_info.scan_finished_event);
+   pHddCtx->scan_info.scan_pending_option = WEXT_SCAN_PENDING_GIVEUP;
 
    vos_set_load_unload_in_progress(VOS_MODULE_ID_VOSS, FALSE);
    hdd_allow_suspend();
+   
+   // Initialize the restart logic
+   wlan_hdd_restart_init(pHddCtx);
   
    goto success;
 
@@ -3865,7 +3979,15 @@ err_free_hdd_context:
 #endif
    VOS_BUG(1);
 
-   return -1;
+   if (hdd_is_ssr_required())
+   {
+       /* WDI timeout had happened during load, so SSR is needed here */
+       subsystem_restart("wcnss");
+       msleep(5000);
+   }
+   hdd_set_ssr_required (VOS_FALSE);
+
+   return -EIO;
 
 success:
    EXIT();
@@ -3874,17 +3996,17 @@ success:
 
 /**---------------------------------------------------------------------------
 
-  \brief hdd_module_init() - Init Function
+  \brief hdd_driver_init() - Core Driver Init Function
 
-   This is the driver entry point (invoked when module is loaded using insmod)
+   This is the driver entry point - called in different timeline depending
+   on whether the driver is statically or dynamically linked
 
   \param  - None
 
   \return - 0 for success, non zero for failure
 
   --------------------------------------------------------------------------*/
-
-static int __init hdd_module_init ( void)
+static int hdd_driver_init( void)
 {
    VOS_STATUS status;
    v_CONTEXT_t pVosContext = NULL;
@@ -3897,7 +4019,9 @@ static int __init hdd_module_init ( void)
 
    ENTER();
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
    wake_lock_init(&wlan_wake_lock, WAKE_LOCK_SUSPEND, "wlan");
+#endif
 
    pr_info("%s: loading driver v%s\n", WLAN_MODULE_NAME,
            QWLAN_VERSIONSTR TIMER_MANAGER_STR MEMORY_DEBUG_STR);
@@ -3908,7 +4032,7 @@ static int __init hdd_module_init ( void)
    {
       hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Libra WLAN not Powered Up. "
           "exiting", __func__);
-      return -1;
+      return -EIO;
    }
 
 #ifdef ANI_BUS_TYPE_SDIO
@@ -3951,7 +4075,7 @@ static int __init hdd_module_init ( void)
       {
          hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Retry Libra WLAN not Powered Up. "
              "exiting", __func__);
-         return -1;
+         return -EIO;
       }
 
       do {
@@ -4027,12 +4151,11 @@ static int __init hdd_module_init ( void)
    }
 #endif // ANI_BUS_TYPE_SDIO
 
-#if defined(FEATURE_WLAN_INTEGRATED_SOC) && defined(ANI_MANF_DIAG)
-      if(5 == con_mode)
-      {
-         hdd_set_conparam(VOS_FTM_MODE);
-      }
-#endif /* FEATURE_WLAN_INTEGRATED_SOC && ANI_MANF_DIAG */
+#ifndef MODULE
+      /* For statically linked driver, call hdd_set_conparam to update curr_con_mode
+       */
+      hdd_set_conparam((v_UINT_t)con_mode);
+#endif
 
       // Call our main init function
       if(hdd_wlan_startup(dev)) {
@@ -4050,9 +4173,9 @@ static int __init hdd_module_init ( void)
        * This is done here for safety purposes in case we re-initialize without turning
        * it OFF in any error scenario.
        */
-      hddLog(VOS_TRACE_LEVEL_ERROR, "In module init: Ensure Force XO Core is OFF"
+      hddLog(VOS_TRACE_LEVEL_INFO, "In module init: Ensure Force XO Core is OFF"
                                        " when  WLAN is turned ON so Core toggles"
-                                       " unless we enter PS\n");
+                                       " unless we enter PSD");
       if (vos_chipVoteXOCore(NULL, NULL, NULL, VOS_FALSE) != VOS_STATUS_SUCCESS)
       {
           hddLog(VOS_TRACE_LEVEL_ERROR, "Could not cancel XO Core ON vote. Not returning failure."
@@ -4075,7 +4198,9 @@ static int __init hdd_module_init ( void)
       vos_mem_exit();
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
       wake_lock_destroy(&wlan_wake_lock);
+#endif
       pr_err("%s: driver load failure\n", WLAN_MODULE_NAME);
    }
    else
@@ -4092,19 +4217,44 @@ static int __init hdd_module_init ( void)
    return ret_status;
 }
 
+/**---------------------------------------------------------------------------
+
+  \brief hdd_module_init() - Init Function
+
+   This is the driver entry point (invoked when module is loaded using insmod)
+
+  \param  - None
+
+  \return - 0 for success, non zero for failure
+
+  --------------------------------------------------------------------------*/
+#ifdef MODULE
+static int __init hdd_module_init ( void)
+{
+   return hdd_driver_init();
+}
+#else /* #ifdef MODULE */
+static int __init hdd_module_init ( void)
+{
+   /* Driver initialization is delayed to fwpath_changed_handler */
+   return 0;
+}
+#endif /* #ifdef MODULE */
+
 
 /**---------------------------------------------------------------------------
 
-  \brief hdd_module_exit() - Exit function
+  \brief hdd_driver_exit() - Exit function
 
-  This is the driver exit point (invoked when module is unloaded using rmmod)
+  This is the driver exit point (invoked when module is unloaded using rmmod
+  or con_mode was changed by userspace)
 
   \param  - None
 
   \return - None
 
   --------------------------------------------------------------------------*/
-static void __exit hdd_module_exit(void)
+static void hdd_driver_exit(void)
 {
    hdd_context_t *pHddCtx = NULL;
    v_CONTEXT_t pVosContext = NULL;
@@ -4156,11 +4306,99 @@ static void __exit hdd_module_exit(void)
 #endif
 
 done:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,5))
    wake_lock_destroy(&wlan_wake_lock);
+#endif
    pr_info("%s: driver unloaded\n", WLAN_MODULE_NAME);
 }
 
-#if defined(WLAN_SOFTAP_FEATURE) || defined(ANI_MANF_DIAG)
+/**---------------------------------------------------------------------------
+
+  \brief hdd_module_exit() - Exit function
+
+  This is the driver exit point (invoked when module is unloaded using rmmod)
+
+  \param  - None
+
+  \return - None
+
+  --------------------------------------------------------------------------*/
+static void __exit hdd_module_exit(void)
+{
+   hdd_driver_exit();
+}
+
+#ifdef MODULE
+static int fwpath_changed_handler(const char *kmessage,
+                                 struct kernel_param *kp)
+{
+   /* nothing to do when driver is DLKM */
+   return 0;
+}
+
+static int con_mode_handler(const char *kmessage,
+                                 struct kernel_param *kp)
+{
+   return param_set_int(kmessage, kp);
+}
+#else /* #ifdef MODULE */
+/**---------------------------------------------------------------------------
+
+  \brief fwpath_changed_handler() - Handler Function
+
+   This is the driver entry point 
+   - delayed driver initialization when driver is statically linked
+   - invoked when module parameter fwpath is modified from userpspace to signal 
+    initializing the WLAN driver
+
+  \return - 0 for success, non zero for failure
+
+  --------------------------------------------------------------------------*/
+static int fwpath_changed_handler(const char *kmessage,
+                                 struct kernel_param *kp)
+{
+   int ret_status;
+
+   if (!wlan_hdd_inited) {
+      ret_status = hdd_driver_init();
+      wlan_hdd_inited = ret_status ? 0 : 1;
+      return ret_status;
+   }
+
+   hdd_driver_exit();
+   
+   msleep(200);
+   
+   ret_status = hdd_driver_init();
+   wlan_hdd_inited = ret_status ? 0 : 1;
+   return ret_status;
+}
+
+/**---------------------------------------------------------------------------
+
+  \brief con_mode_handler() -
+
+  Handler function for module param con_mode when it is changed by userspace
+  Dynamically linked - do nothing
+  Statically linked - exit and init driver, as in rmmod and insmod
+
+  \param  - 
+
+  \return - 
+
+  --------------------------------------------------------------------------*/
+static int con_mode_handler(const char *kmessage,
+                                 struct kernel_param *kp)
+{
+   int ret = param_set_int(kmessage, kp);
+
+   if (ret)
+       return ret;
+
+   return fwpath_changed_handler(kmessage, kp);
+}
+#endif /* #ifdef MODULE */
+
 /**---------------------------------------------------------------------------
 
   \brief hdd_get_conparam() -
@@ -4174,12 +4412,18 @@ done:
   --------------------------------------------------------------------------*/
 tVOS_CON_MODE hdd_get_conparam ( void )
 {
+#ifdef MODULE
     return (tVOS_CON_MODE)con_mode;
-
+#else
+    return (tVOS_CON_MODE)curr_con_mode;
+#endif
 }
 void hdd_set_conparam ( v_UINT_t newParam )
 {
   con_mode = newParam;
+#ifndef MODULE
+  curr_con_mode = con_mode;
+#endif
 }
 /**---------------------------------------------------------------------------
 
@@ -4274,7 +4518,6 @@ void hdd_softap_tkip_mic_fail_counter_measure(hdd_adapter_t *pAdapter,v_BOOL_t e
     WLANSAP_SetCounterMeasure(pVosContext, (v_BOOL_t)enable);
 }
 
-#endif /* WLAN_SOFTAP_FEATURE */
 /**---------------------------------------------------------------------------
  *
  *   \brief hdd_get__concurrency_mode() -
@@ -4300,7 +4543,7 @@ tVOS_CONCURRENCY_MODE hdd_get_concurrency_mode ( void )
     }
 
     /* we are in an invalid state :( */
-    hddLog(LOGE, "%s: Invalid context", __FUNCTION__);
+    hddLog(LOGE, "%s: Invalid context", __func__);
     return VOS_STA;
 }
 
@@ -4339,6 +4582,20 @@ v_BOOL_t hdd_is_apps_power_collapse_allowed(hdd_context_t* pHddCtx)
         pAdapterNode = pNext;
     }
     return TRUE;
+}
+
+/* Decides whether to send suspend notification to Riva
+ * if any adapter is in BMPS; then it is required */
+v_BOOL_t hdd_is_suspend_notify_allowed(hdd_context_t* pHddCtx)
+{
+    tPmcState pmcState = pmcGetPmcState(pHddCtx->hHal);
+    hdd_config_t *pConfig = pHddCtx->cfg_ini;
+
+    if (pConfig->fIsBmpsEnabled && (pmcState == BMPS))
+    {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 void wlan_hdd_set_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
@@ -4384,6 +4641,196 @@ void wlan_hdd_clear_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
     __func__,pHddCtx->concurrency_mode,mode,pHddCtx->no_of_sessions[mode]);
 }
 
+/**---------------------------------------------------------------------------
+ *
+ *   \brief wlan_hdd_restart_init
+ *
+ *   This function initalizes restart timer/flag. An internal function.
+ *
+ *   \param  - pHddCtx
+ *
+ *   \return - None
+ *             
+ * --------------------------------------------------------------------------*/
+
+static void wlan_hdd_restart_init(hdd_context_t *pHddCtx)
+{
+   /* Initialize */
+   pHddCtx->hdd_restart_retries = 0;
+   atomic_set(&pHddCtx->isRestartInProgress, 0);
+   vos_timer_init(&pHddCtx->hdd_restart_timer, 
+                     VOS_TIMER_TYPE_SW, 
+                     wlan_hdd_restart_timer_cb,
+                     pHddCtx);
+}
+/**---------------------------------------------------------------------------
+ *
+ *   \brief wlan_hdd_restart_deinit
+ *
+ *   This function cleans up the resources used. An internal function.
+ *
+ *   \param  - pHddCtx
+ *
+ *   \return - None
+ *             
+ * --------------------------------------------------------------------------*/
+
+static void wlan_hdd_restart_deinit(hdd_context_t* pHddCtx)
+{
+ 
+   VOS_STATUS vos_status;
+   /* Block any further calls */
+   atomic_set(&pHddCtx->isRestartInProgress, 1);
+   /* Cleanup */
+   vos_status = vos_timer_stop( &pHddCtx->hdd_restart_timer );
+   if (!VOS_IS_STATUS_SUCCESS(vos_status))
+          hddLog(LOGW, FL("Failed to stop HDD restart timer"));
+   vos_status = vos_timer_destroy(&pHddCtx->hdd_restart_timer);
+   if (!VOS_IS_STATUS_SUCCESS(vos_status))
+          hddLog(LOGW, FL("Failed to destroy HDD restart timer"));
+
+}
+
+/**---------------------------------------------------------------------------
+ *
+ *   \brief wlan_hdd_framework_restart
+ *
+ *   This function uses a cfg80211 API to start a framework initiated WLAN
+ *   driver module unload/load.
+ *
+ *   Also this API keep retrying (WLAN_HDD_RESTART_RETRY_MAX_CNT).
+ *
+ *
+ *   \param  - pHddCtx
+ *
+ *   \return - VOS_STATUS_SUCCESS: Success
+ *             VOS_STATUS_E_EMPTY: Adapter is Empty
+ *             VOS_STATUS_E_NOMEM: No memory
+
+ * --------------------------------------------------------------------------*/
+
+static VOS_STATUS wlan_hdd_framework_restart(hdd_context_t *pHddCtx) 
+{
+   VOS_STATUS status = VOS_STATUS_SUCCESS;
+   hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
+   int len = (sizeof (struct ieee80211_mgmt));
+   struct ieee80211_mgmt *mgmt = NULL; 
+   
+   /* Prepare the DEAUTH managment frame with reason code */
+   mgmt =  kzalloc(len, GFP_KERNEL);
+   if(mgmt == NULL) 
+   {
+      VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL, 
+            "%s: memory allocatoin failed (%d bytes)", __func__, len);
+      return VOS_STATUS_E_NOMEM;
+   }
+   mgmt->u.deauth.reason_code = WLAN_REASON_DISASSOC_LOW_ACK;
+
+   /* Iterate over all adapters/devices */
+   status =  hdd_get_front_adapter ( pHddCtx, &pAdapterNode );
+   do 
+   {
+      if( (status == VOS_STATUS_SUCCESS) && 
+                           pAdapterNode  && 
+                           pAdapterNode->pAdapter)
+      {
+         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL, 
+               "restarting the driver(intf:\'%s\' mode:%d :try %d)",
+               pAdapterNode->pAdapter->dev->name,
+               pAdapterNode->pAdapter->device_mode,
+               pHddCtx->hdd_restart_retries + 1);
+         /* 
+          * CFG80211 event to restart the driver
+          * 
+          * 'cfg80211_send_unprot_deauth' sends a 
+          * NL80211_CMD_UNPROT_DEAUTHENTICATE event to supplicant at any state 
+          * of SME(Linux Kernel) state machine.
+          *
+          * Reason code WLAN_REASON_DISASSOC_LOW_ACK is currently used to restart
+          * the driver.
+          *
+          */
+         
+         cfg80211_send_unprot_deauth(pAdapterNode->pAdapter->dev, (u_int8_t*)mgmt, len );  
+      }
+      status = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
+      pAdapterNode = pNext;
+   } while((NULL != pAdapterNode) && (VOS_STATUS_SUCCESS == status));
+
+
+   /* Free the allocated management frame */
+   kfree(mgmt);
+
+   /* Retry until we unload or reach max count */
+   if(++pHddCtx->hdd_restart_retries < WLAN_HDD_RESTART_RETRY_MAX_CNT) 
+      vos_timer_start(&pHddCtx->hdd_restart_timer, WLAN_HDD_RESTART_RETRY_DELAY_MS);
+
+   return status;
+
+}
+/**---------------------------------------------------------------------------
+ *
+ *   \brief wlan_hdd_restart_timer_cb
+ *
+ *   Restart timer callback. An internal function.
+ *
+ *   \param  - User data:
+ *
+ *   \return - None
+ *             
+ * --------------------------------------------------------------------------*/
+
+void wlan_hdd_restart_timer_cb(v_PVOID_t usrDataForCallback)
+{
+   hdd_context_t *pHddCtx = usrDataForCallback;
+   wlan_hdd_framework_restart(pHddCtx);
+   return;
+
+}
+
+
+/**---------------------------------------------------------------------------
+ *
+ *   \brief wlan_hdd_restart_driver
+ *
+ *   This function sends an event to supplicant to restart the WLAN driver. 
+ *   
+ *   This function is called from vos_wlanRestart.
+ *
+ *   \param  - pHddCtx
+ *
+ *   \return - VOS_STATUS_SUCCESS: Success
+ *             VOS_STATUS_E_EMPTY: Adapter is Empty
+ *             VOS_STATUS_E_ALREADY: Request already in progress
+
+ * --------------------------------------------------------------------------*/
+VOS_STATUS wlan_hdd_restart_driver(hdd_context_t *pHddCtx) 
+{
+   VOS_STATUS status = VOS_STATUS_SUCCESS;
+
+   /* A tight check to make sure reentrancy */
+   if(atomic_xchg(&pHddCtx->isRestartInProgress, 1))
+   {
+      VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN, 
+            "%s: WLAN restart is already in progress", __func__);
+
+      return VOS_STATUS_E_ALREADY;
+   }
+   /* when WLAN driver is statically linked, then invoke SSR by sending 
+    * the reset interrupt. If it is DLKM, then use restart API
+    */
+#ifdef MODULE
+   status = wlan_hdd_framework_restart(pHddCtx);
+#else
+#ifdef HAVE_WCNSS_RESET_INTR
+   wcnss_reset_intr();
+#endif
+#endif
+ 
+   return status;
+}
+
+
 //Register the module init/exit functions
 module_init(hdd_module_init);
 module_exit(hdd_module_exit);
@@ -4392,6 +4839,8 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Qualcomm Atheros, Inc.");
 MODULE_DESCRIPTION("WLAN HOST DEVICE DRIVER");
 
-#if defined(WLAN_SOFTAP_FEATURE) || defined(ANI_MANF_DIAG)
-module_param(con_mode, int, 0);
-#endif
+module_param_call(con_mode, con_mode_handler, param_get_int, &con_mode,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+module_param_call(fwpath, fwpath_changed_handler, param_get_string, fwpath,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);

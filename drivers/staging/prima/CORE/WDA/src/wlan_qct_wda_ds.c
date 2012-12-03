@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -65,7 +65,7 @@ when        who          what, where, why
 #include "wlan_bal_misc.h"
 #endif
 
-#define WDA_DS_DXE_RES_COUNT   WDA_TLI_MIN_RES_DATA + 20
+#define WDA_DS_DXE_RES_COUNT   (WDA_TLI_MIN_RES_DATA + 20)
 
 #define VOS_TO_WPAL_PKT(_vos_pkt) ((wpt_packet*)_vos_pkt)
 
@@ -1357,7 +1357,7 @@ WDA_DS_TxFrames
     {
       VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
                    "WDA : Pushing a packet to WDI failed.");
-      VOS_ASSERT( 0 );
+      VOS_ASSERT( wdiStatus != WDI_STATUS_E_NOT_ALLOWED );
       //We need to free the packet here
       vos_pkt_get_user_data_ptr(pTxPacket, VOS_PKT_USER_DATA_ID_TL, (void **)&pfnTxComp);
       if(pfnTxComp)
@@ -1412,11 +1412,7 @@ WDA_DS_TxFrames
     {
       VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
                    "WDA : Pushing a packet to WDI failed.");
-      /* TODO Wd should return this packet to VOSS. Otherwise
-         UMAC is going in low resource condition.
-         Who needs to do it? DXE, WDI? 
-         */
-      VOS_ASSERT( 0 );
+      VOS_ASSERT( wdiStatus != WDI_STATUS_E_NOT_ALLOWED );
       //We need to free the packet here
       vos_pkt_get_user_data_ptr(pTxPacket, VOS_PKT_USER_DATA_ID_TL, (void **)&pfnTxComp);
       if(pfnTxComp)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -325,7 +325,7 @@ eHalStatus sme_FTSendUpdateKeyInd(tHalHandle hHal, tCsrRoamSetKey * pFTKeyInfo)
         palCopyMemory( pMac->hHdd, p, pFTKeyInfo->Key, pFTKeyInfo->keyLength ); 
         if(pFTKeyInfo->keyLength == 16)
         {
-            smsLog(pMac, LOGE, "  SME Set keyIdx (%d) encType(%d) key = %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
+            smsLog(pMac, LOG1, "  SME Set keyIdx (%d) encType(%d) key = %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
             pFTKeyInfo->keyId, edType, pFTKeyInfo->Key[0], pFTKeyInfo->Key[1], pFTKeyInfo->Key[2], pFTKeyInfo->Key[3], pFTKeyInfo->Key[4],
             pFTKeyInfo->Key[5], pFTKeyInfo->Key[6], pFTKeyInfo->Key[7], pFTKeyInfo->Key[8],
             pFTKeyInfo->Key[9], pFTKeyInfo->Key[10], pFTKeyInfo->Key[11], pFTKeyInfo->Key[12], pFTKeyInfo->Key[13], pFTKeyInfo->Key[14], pFTKeyInfo->Key[15]);
@@ -350,13 +350,13 @@ eHalStatus sme_FTUpdateKey( tHalHandle hHal, tCsrRoamSetKey * pFTKeyInfo )
 
     if (pFTKeyInfo == NULL) 
     {
-        smsLog( pMac, LOGE, "%s: pFTKeyInfo is NULL\n", __FUNCTION__);
+        smsLog( pMac, LOGE, "%s: pFTKeyInfo is NULL\n", __func__);
         sme_ReleaseGlobalLock( &pMac->sme );
         return eHAL_STATUS_FAILURE; 
     }
 
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
-    smsLog( pMac, LOGE, "sme_FTUpdateKey is received in state %d\n", 
+    smsLog( pMac, LOG1, "sme_FTUpdateKey is received in state %d", 
         pMac->ft.ftSmeContext.FTState);
 #endif
 
@@ -364,12 +364,13 @@ eHalStatus sme_FTUpdateKey( tHalHandle hHal, tCsrRoamSetKey * pFTKeyInfo )
     switch(pMac->ft.ftSmeContext.FTState)
     {
     case eFT_SET_KEY_WAIT:
-       status = sme_FTSendUpdateKeyInd( hHal, pFTKeyInfo );
+       status = eHAL_STATUS_SUCCESS;
+       //status = sme_FTSendUpdateKeyInd( hHal, pFTKeyInfo );
        pMac->ft.ftSmeContext.FTState = eFT_START_READY;
        break;
           
     default:
-       smsLog( pMac, LOGE, "%s: Unhandled state=%d\n", __FUNCTION__,
+       smsLog( pMac, LOGE, "%s: Unhandled state=%d\n", __func__,
                pMac->ft.ftSmeContext.FTState);
        status = eHAL_STATUS_FAILURE;
        break;

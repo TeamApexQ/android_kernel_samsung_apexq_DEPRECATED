@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -205,6 +205,8 @@ typedef enum
 #define P2P_OUI_TYPE_SIZE  4
 #endif
 
+#define HS20_OUI_TYPE   "\x50\x6f\x9a\x10"
+#define HS20_OUI_TYPE_SIZE  4
 
 #ifdef WLAN_FEATURE_WFD
 #define WFD_OUI_TYPE   "\x50\x6f\x9a\x0a"
@@ -385,6 +387,8 @@ VOS_STATUS wlan_hdd_exit_lowpower(hdd_context_t *pHddCtx,
 VOS_STATUS wlan_hdd_enter_lowpower(hdd_context_t *pHddCtx);
 
 VOS_STATUS wlan_hdd_get_classAstats(hdd_adapter_t *pAdapter);
+
+VOS_STATUS wlan_hdd_get_station_stats(hdd_adapter_t *pAdapter);
 
 VOS_STATUS wlan_hdd_get_rssi(hdd_adapter_t *pAdapter, v_S7_t *rssi_value);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -97,7 +97,7 @@ static void wpalOutput(wpt_tracelevel level, char *strBuffer)
    switch(level)
    {
    default:
-      printk(KERN_CRIT "%s: Unknown trace level passed in!\n", __FUNCTION__); 
+      printk(KERN_CRIT "%s: Unknown trace level passed in!\n", __func__); 
       // fall thru and use FATAL
 
    case eWLAN_PAL_TRACE_LEVEL_FATAL:

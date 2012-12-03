@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -63,46 +63,46 @@
 // MLM message types
 #define LIM_MLM_MSG_START           1000
 #define LIM_MLM_SCAN_REQ            LIM_MLM_MSG_START
-#define LIM_MLM_SCAN_CNF            LIM_MLM_MSG_START + 1
-#define LIM_MLM_START_REQ           LIM_MLM_MSG_START + 2
-#define LIM_MLM_START_CNF           LIM_MLM_MSG_START + 3
-#define LIM_MLM_JOIN_REQ            LIM_MLM_MSG_START + 4
-#define LIM_MLM_JOIN_CNF            LIM_MLM_MSG_START + 5
-#define LIM_MLM_AUTH_REQ            LIM_MLM_MSG_START + 6
-#define LIM_MLM_AUTH_CNF            LIM_MLM_MSG_START + 7
-#define LIM_MLM_AUTH_IND            LIM_MLM_MSG_START + 8
-#define LIM_MLM_ASSOC_REQ           LIM_MLM_MSG_START + 9
-#define LIM_MLM_ASSOC_CNF           LIM_MLM_MSG_START + 10
-#define LIM_MLM_ASSOC_IND           LIM_MLM_MSG_START + 11
-#define LIM_MLM_DISASSOC_REQ        LIM_MLM_MSG_START + 12
-#define LIM_MLM_DISASSOC_CNF        LIM_MLM_MSG_START + 13
-#define LIM_MLM_DISASSOC_IND        LIM_MLM_MSG_START + 14
-#define LIM_MLM_REASSOC_REQ         LIM_MLM_MSG_START + 15
-#define LIM_MLM_REASSOC_CNF         LIM_MLM_MSG_START + 16
-#define LIM_MLM_REASSOC_IND         LIM_MLM_MSG_START + 17
-#define LIM_MLM_DEAUTH_REQ          LIM_MLM_MSG_START + 18
-#define LIM_MLM_DEAUTH_CNF          LIM_MLM_MSG_START + 19
-#define LIM_MLM_DEAUTH_IND          LIM_MLM_MSG_START + 20
-#define LIM_MLM_TSPEC_REQ           LIM_MLM_MSG_START + 21
-#define LIM_MLM_TSPEC_CNF           LIM_MLM_MSG_START + 22
-#define LIM_MLM_TSPEC_IND           LIM_MLM_MSG_START + 23
-#define LIM_MLM_SETKEYS_REQ         LIM_MLM_MSG_START + 24
-#define LIM_MLM_SETKEYS_CNF         LIM_MLM_MSG_START + 25
-#define LIM_MLM_LINK_TEST_STOP_REQ  LIM_MLM_MSG_START + 30
-#define LIM_MLM_PURGE_STA_IND       LIM_MLM_MSG_START + 31
-#define LIM_MLM_ADDBA_REQ           LIM_MLM_MSG_START + 32
-#define LIM_MLM_ADDBA_CNF           LIM_MLM_MSG_START + 33
-#define LIM_MLM_ADDBA_IND           LIM_MLM_MSG_START + 34
-#define LIM_MLM_ADDBA_RSP           LIM_MLM_MSG_START + 35
-#define LIM_MLM_DELBA_REQ           LIM_MLM_MSG_START + 36
-#define LIM_MLM_DELBA_CNF           LIM_MLM_MSG_START + 37
-#define LIM_MLM_DELBA_IND           LIM_MLM_MSG_START + 38
-#define LIM_MLM_REMOVEKEY_REQ  LIM_MLM_MSG_START + 39
-#define LIM_MLM_REMOVEKEY_CNF  LIM_MLM_MSG_START + 40
+#define LIM_MLM_SCAN_CNF            (LIM_MLM_MSG_START + 1)
+#define LIM_MLM_START_REQ           (LIM_MLM_MSG_START + 2)
+#define LIM_MLM_START_CNF           (LIM_MLM_MSG_START + 3)
+#define LIM_MLM_JOIN_REQ            (LIM_MLM_MSG_START + 4)
+#define LIM_MLM_JOIN_CNF            (LIM_MLM_MSG_START + 5)
+#define LIM_MLM_AUTH_REQ            (LIM_MLM_MSG_START + 6)
+#define LIM_MLM_AUTH_CNF            (LIM_MLM_MSG_START + 7)
+#define LIM_MLM_AUTH_IND            (LIM_MLM_MSG_START + 8)
+#define LIM_MLM_ASSOC_REQ           (LIM_MLM_MSG_START + 9)
+#define LIM_MLM_ASSOC_CNF           (LIM_MLM_MSG_START + 10)
+#define LIM_MLM_ASSOC_IND           (LIM_MLM_MSG_START + 11)
+#define LIM_MLM_DISASSOC_REQ        (LIM_MLM_MSG_START + 12)
+#define LIM_MLM_DISASSOC_CNF        (LIM_MLM_MSG_START + 13)
+#define LIM_MLM_DISASSOC_IND        (LIM_MLM_MSG_START + 14)
+#define LIM_MLM_REASSOC_REQ         (LIM_MLM_MSG_START + 15)
+#define LIM_MLM_REASSOC_CNF         (LIM_MLM_MSG_START + 16)
+#define LIM_MLM_REASSOC_IND         (LIM_MLM_MSG_START + 17)
+#define LIM_MLM_DEAUTH_REQ          (LIM_MLM_MSG_START + 18)
+#define LIM_MLM_DEAUTH_CNF          (LIM_MLM_MSG_START + 19)
+#define LIM_MLM_DEAUTH_IND          (LIM_MLM_MSG_START + 20)
+#define LIM_MLM_TSPEC_REQ           (LIM_MLM_MSG_START + 21)
+#define LIM_MLM_TSPEC_CNF           (LIM_MLM_MSG_START + 22)
+#define LIM_MLM_TSPEC_IND           (LIM_MLM_MSG_START + 23)
+#define LIM_MLM_SETKEYS_REQ         (LIM_MLM_MSG_START + 24)
+#define LIM_MLM_SETKEYS_CNF         (LIM_MLM_MSG_START + 25)
+#define LIM_MLM_LINK_TEST_STOP_REQ  (LIM_MLM_MSG_START + 30)
+#define LIM_MLM_PURGE_STA_IND       (LIM_MLM_MSG_START + 31)
+#define LIM_MLM_ADDBA_REQ           (LIM_MLM_MSG_START + 32)
+#define LIM_MLM_ADDBA_CNF           (LIM_MLM_MSG_START + 33)
+#define LIM_MLM_ADDBA_IND           (LIM_MLM_MSG_START + 34)
+#define LIM_MLM_ADDBA_RSP           (LIM_MLM_MSG_START + 35)
+#define LIM_MLM_DELBA_REQ           (LIM_MLM_MSG_START + 36)
+#define LIM_MLM_DELBA_CNF           (LIM_MLM_MSG_START + 37)
+#define LIM_MLM_DELBA_IND           (LIM_MLM_MSG_START + 38)
+#define LIM_MLM_REMOVEKEY_REQ  (LIM_MLM_MSG_START + 39)
+#define LIM_MLM_REMOVEKEY_CNF  (LIM_MLM_MSG_START + 40)
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
-#define LIM_MLM_OEM_DATA_REQ            LIM_MLM_MSG_START + 41
-#define LIM_MLM_OEM_DATA_CNF            LIM_MLM_MSG_START + 42
+#define LIM_MLM_OEM_DATA_REQ            (LIM_MLM_MSG_START + 41)
+#define LIM_MLM_OEM_DATA_CNF            (LIM_MLM_MSG_START + 42)
 #endif
 
 #define LIM_HASH_ADD            0
@@ -178,7 +178,7 @@ typedef struct sLimMlmStartReq
     tANI_U8               dtimPeriod;
     tSirMacCfParamSet     cfParamSet;
     tSirMacChanNum        channelNumber;
-    tAniCBSecondaryMode   cbMode;
+    ePhyChanBondState     cbMode;
     tANI_U16              atimWindow;
     tSirMacRateSet        rateSet;
     tANI_U8               sessionId; //Added For BT-AMP Support   
@@ -248,8 +248,6 @@ typedef struct sLimMlmAssocInd
     tSirRSNie            rsnIE;
     tSirAddie            addIE; // additional IE recevied from the peer, which possibly includes WSC IE and/or P2P IE.
     tSirMacCapabilityInfo capabilityInfo;
-    tAniTitanHtCapabilityInfo titanHtCaps;
-
     tAniBool                spectrumMgtIndicator;
     tSirMacPowerCapInfo     powerCap;
     tSirSupChnl             supportedChannels;
@@ -304,8 +302,6 @@ typedef struct sLimMlmReassocInd
     tSirRSNie            rsnIE;
     tSirAddie            addIE; // additional IE recevied from the peer, which can be WSC IE and/or P2P IE.
     tSirMacCapabilityInfo capabilityInfo;
-    tAniTitanHtCapabilityInfo titanHtCaps;
-
     tAniBool                spectrumMgtIndicator;
     tSirMacPowerCapInfo     powerCap;
     tSirSupChnl             supportedChannels;
@@ -651,11 +647,8 @@ void limProcessSmeDelBssRsp( tpAniSirGlobal , tANI_U32,tpPESession);
 
 void limGetRandomBssid(tpAniSirGlobal pMac ,tANI_U8 *data);
 
-// Function to handle CB CFG parameter updates
-void handleCBCFGChange( tpAniSirGlobal pMac, tANI_U32 cfgId );
-
 // Function to handle HT and HT IE CFG parameter intializations
-void handleHTCapabilityandHTInfo(struct sAniSirGlobal *pMac);
+void handleHTCapabilityandHTInfo(struct sAniSirGlobal *pMac, tpPESession psessionEntry);
 
 // Function to handle CFG parameter updates
 void limHandleCFGparamUpdate(tpAniSirGlobal, tANI_U32);
@@ -678,7 +671,6 @@ void limCleanupMlm(tpAniSirGlobal);
 
 // Function to cleanup LMM state machine
 void limCleanupLmm(tpAniSirGlobal);
-
 
 // Management frame handling functions
 void limProcessBeaconFrame(tpAniSirGlobal, tANI_U8 *,tpPESession);
@@ -732,14 +724,19 @@ void limSendAssocRspMgmtFrame(tpAniSirGlobal, tANI_U16, tANI_U16, tSirMacAddr, t
 void limSendAssocRspMgmtFrame(tpAniSirGlobal, tANI_U16, tANI_U16, tSirMacAddr, tANI_U8, tpDphHashNode pSta,tpPESession);
 
 void limSendNullDataFrame(tpAniSirGlobal, tpDphHashNode);
-void limSendDisassocMgmtFrame(tpAniSirGlobal, tANI_U16, tSirMacAddr,tpPESession);
-void limSendDeauthMgmtFrame(tpAniSirGlobal, tANI_U16, tSirMacAddr,tpPESession);
+void limSendDisassocMgmtFrame(tpAniSirGlobal, tANI_U16, tSirMacAddr, tpPESession, tANI_BOOLEAN waitForAck);
+void limSendDeauthMgmtFrame(tpAniSirGlobal, tANI_U16, tSirMacAddr, tpPESession, tANI_BOOLEAN waitForAck);
 
 void limContinueChannelScan(tpAniSirGlobal);
 tSirResultCodes limMlmAddBss(tpAniSirGlobal, tLimMlmStartReq *,tpPESession psessionEntry);
 
-#if (WNI_POLARIS_FW_PACKAGE == ADVANCED) && defined(ANI_PRODUCT_TYPE_AP)
-tSirRetStatus limSendChannelSwitchMgmtFrame(tpAniSirGlobal, tSirMacAddr, tANI_U8, tANI_U8, tANI_U8);
+#if 1 //(WNI_POLARIS_FW_PACKAGE == ADVANCED) && defined(ANI_PRODUCT_TYPE_AP)
+tSirRetStatus limSendChannelSwitchMgmtFrame(tpAniSirGlobal, tSirMacAddr, tANI_U8, tANI_U8, tANI_U8, tpPESession);
+#endif
+
+#ifdef WLAN_FEATURE_11AC
+tSirRetStatus limSendVHTOpmodeNotificationFrame(tpAniSirGlobal pMac,tSirMacAddr peer,tANI_U8 nMode, tpPESession  psessionEntry );
+tSirRetStatus limSendVHTChannelSwitchMgmtFrame(tpAniSirGlobal pMac,tSirMacAddr peer,tANI_U8 nChanWidth, tANI_U8 nNewChannel, tANI_U8 ncbMode, tpPESession  psessionEntry );
 #endif
 
 #if defined WLAN_FEATURE_VOWIFI
@@ -793,7 +790,7 @@ tANI_U32 limDeferMsg(tpAniSirGlobal, tSirMsgQ *);
 void limSetScanMode(tpAniSirGlobal pMac);
 
 /// Function that Switches the Channel and sets the CB Mode 
-void limSetChannel(tpAniSirGlobal pMac, tANI_U32 titanHtcap, tANI_U8 channel, tPowerdBm maxTxPower, tANI_U8 peSessionId);
+void limSetChannel(tpAniSirGlobal pMac, tANI_U8 channel, tANI_U8 secChannelOffset, tPowerdBm maxTxPower, tANI_U8 peSessionId);
 
 /// Function that completes channel scan
 void limCompleteMlmScan(tpAniSirGlobal, tSirResultCodes);
@@ -819,11 +816,6 @@ void limProcessMlmAddBssRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ );
 void limProcessMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQt,tpPESession psessionEntry);
 void limProcessMlmDelStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ );
 void limProcessMlmDelBssRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ,tpPESession);
-#ifdef ANI_PRODUCT_TYPE_AP
-void limProcessApMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ );
-void limProcessApMlmDelStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ );
-void limProcessApMlmDelBssRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ );
-#endif
 void limProcessStaMlmAddStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ ,tpPESession psessionEntry);
 void limProcessStaMlmDelStaRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ,tpPESession psessionEntry);
 void limProcessStaMlmDelBssRsp( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ ,tpPESession psessionEntry);
@@ -1091,5 +1083,9 @@ void limSendP2PActionFrame(tpAniSirGlobal pMac, tpSirMsgQ pMsg);
 void limAbortRemainOnChan(tpAniSirGlobal pMac);
 tSirRetStatus __limProcessSmeNoAUpdate(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf);
 #endif
+void limProcessDisassocAckTimeout(tpAniSirGlobal pMac);
+void limProcessDeauthAckTimeout(tpAniSirGlobal pMac);
+eHalStatus limSendDisassocCnf(tpAniSirGlobal pMac);
+eHalStatus limSendDeauthCnf(tpAniSirGlobal pMac);
 #endif /* __LIM_TYPES_H */
 

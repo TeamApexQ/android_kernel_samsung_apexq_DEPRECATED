@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -161,15 +161,19 @@ WDI_Status WDI_DS_TxPacket(void *pContext,
   switch(ucType)
   {
     case WDI_MAC_DATA_FRAME:
+       if(!pTxMetadata->isEapol)
+       {
        pMemPool = &(pClientData->dataMemPool);
        ucBdPoolType = WDI_DATA_POOL_ID;
-    break;
+       break;
+       }
+    // intentional fall-through to handle eapol packet as mgmt
     case WDI_MAC_MGMT_FRAME:
        pMemPool = &(pClientData->mgmtMemPool);
        ucBdPoolType = WDI_MGMT_POOL_ID;
     break;
     default:
-      return WDI_STATUS_E_FAILURE;;
+      return WDI_STATUS_E_FAILURE;
   }
 
   // Allocate BD header from pool
@@ -195,7 +199,8 @@ WDI_Status WDI_DS_TxPacket(void *pContext,
   }  
 
   /* resource count only for data packet */
-  if(WDI_MAC_DATA_FRAME == ucType)
+  // EAPOL packet doesn't use data mem pool if being treated as higher priority
+  if(WDI_MAC_DATA_FRAME == ucType && (!pTxMetadata->isEapol))
   {
     WDI_DS_MemPoolIncreaseReserveCount(pMemPool, staId);
   }

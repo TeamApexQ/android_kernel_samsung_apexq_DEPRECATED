@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -128,6 +128,9 @@ typedef enum
  * Check the version number and find if MCC feature is supported or not
  */
 #define IS_MCC_SUPPORTED (WDA_IsWcnssWlanReportedVersionGreaterThanOrEqual( 0, 1, 1, 0))
+#define IS_FEATURE_SUPPORTED_BY_FW(featEnumValue) (WDA_getFwWlanFeatCaps(featEnumValue))
+
+
 
 /*--------------------------------------------------------------------------
   Definitions for Data path APIs
@@ -196,9 +199,9 @@ typedef enum
 
 /*DXE + SD*/
 #if defined( FEATURE_WLAN_INTEGRATED_SOC )
-#define WDA_WLAN_LIBRA_HEADER_LEN              20+8
+#define WDA_WLAN_LIBRA_HEADER_LEN              (20 + 8)
 #else /* FEATURE_WLAN_INTEGRATED_SOC */
-#define WLAN_LIBRA_HEADER_LEN              20+8
+#define WLAN_LIBRA_HEADER_LEN              (20 + 8)
 #endif /* FEATURE_WLAN_INTEGRATED_SOC */
 
 #if defined( FEATURE_WLAN_INTEGRATED_SOC )
@@ -214,8 +217,8 @@ typedef enum
 #  define WDA_TLI_MIN_RES_DATA 3
 #else
 #  define WDA_TLI_MIN_RES_MF   13 /*Keeping for MF*/
-#  define WDA_TLI_MIN_RES_BAP  WDA_TLI_MIN_RES_MF  + 13 /*Another for BAP*/
-#  define WDA_TLI_MIN_RES_DATA WDA_TLI_MIN_RES_BAP + 13 /*Min 12 for data*/
+#  define WDA_TLI_MIN_RES_BAP  (WDA_TLI_MIN_RES_MF  + 13) /*Another for BAP*/
+#  define WDA_TLI_MIN_RES_DATA (WDA_TLI_MIN_RES_BAP + 13) /*Min 12 for data*/
 #  define WLANTL_TH_RES_DATA                        254
 #endif
 
@@ -270,7 +273,7 @@ typedef enum
 /*Minimum resources needed - arbitrary*/
 
 /*DXE + SD*/
-#define WLAN_LIBRA_HEADER_LEN              20+8
+#define WLAN_LIBRA_HEADER_LEN              (20 + 8)
 
 #define WLANTL_MAX_MSDU                    1538
 
@@ -360,8 +363,6 @@ typedef struct
    v_PVOID_t            pVosContext;             /* global VOSS context*/
    v_PVOID_t            pWdiContext;             /* WDI context */
    WDA_state            wdaState ;               /* WDA state tracking */ 
-   v_PVOID_t            wdaMsgParam ;            /* PE parameter tracking */
-   v_PVOID_t            wdaWdiApiMsgParam ;      /* WDI API paramter tracking */
    v_PVOID_t            wdaWdiCfgApiMsgParam ;   /* WDI API paramter tracking */
    vos_event_t          wdaWdiEvent;             /* WDI API sync event */
 
@@ -419,6 +420,9 @@ typedef struct
    /* set, when BT AMP session is going on */
    v_BOOL_t             wdaAmpSessionOn;
    v_U32_t              VosPacketToFree;
+   v_BOOL_t             needShutdown;
+   v_BOOL_t             wdiFailed;
+   v_BOOL_t             wdaTimersCreated;
 } tWDA_CbContext ; 
 
 typedef struct
@@ -465,6 +469,17 @@ VOS_STATUS WDA_close(v_PVOID_t pVosContext);
  * Shutdown will not close the control transport, added by SSR
  */
 VOS_STATUS WDA_shutdown(v_PVOID_t pVosContext, wpt_boolean closeTransport);
+
+/*
+ * FUNCTION: WDA_stopFailed
+ * WDA stop is failed
+ */
+void WDA_stopFailed(v_PVOID_t pVosContext);
+/*
+ * FUNCTION: WDA_needShutdown
+ * WDA requires a shutdown rather than a close
+ */
+v_BOOL_t WDA_needShutdown(v_PVOID_t pVosContext);
 
 /*
  * FUNCTION: WDA_McProcessMsg
@@ -972,7 +987,7 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_RADIO_ON_OFF_IND SIR_HAL_RADIO_ON_OFF_IND
 #define WDA_RESET_CNF SIR_HAL_RESET_CNF
 #define WDA_SetRegDomain \
-        eHalStatus halPhySetRegDomain(tHalHandle hHal, eRegDomainId regDomain);
+    (eHalStatus halPhySetRegDomain(tHalHandle hHal, eRegDomainId regDomain))
 #endif
 
 #define WDA_APP_SETUP_NTF  SIR_HAL_APP_SETUP_NTF 
@@ -1203,13 +1218,10 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_SET_P2P_GO_NOA_REQ         SIR_HAL_SET_P2P_GO_NOA_REQ
 #endif
 
-#define WDA_TX_COMPLETE_TIMEOUT_IND  WDA_MSG_TYPES_END - 1
+#define WDA_TX_COMPLETE_TIMEOUT_IND  (WDA_MSG_TYPES_END - 1)
 #define WDA_WLAN_SUSPEND_IND           SIR_HAL_WLAN_SUSPEND_IND
 #define WDA_WLAN_RESUME_REQ           SIR_HAL_WLAN_RESUME_REQ
 #define WDA_MSG_TYPES_END    SIR_HAL_MSG_TYPES_END
-
-#define WDA_SUSPEND_ACTIVITY_RSP SIR_HAL_SUSPEND_ACTIVITY_RSP
-
 
 #define WDA_MMH_TXMB_READY_EVT SIR_HAL_MMH_TXMB_READY_EVT     
 #define WDA_MMH_RXMB_DONE_EVT  SIR_HAL_MMH_RXMB_DONE_EVT    
@@ -1258,6 +1270,10 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #endif //WLAN_FEATURE_GTK_OFFLOAD
 
 #define WDA_SET_TM_LEVEL_REQ       SIR_HAL_SET_TM_LEVEL_REQ
+
+#ifdef WLAN_FEATURE_11AC
+#define WDA_UPDATE_OP_MODE         SIR_HAL_UPDATE_OP_MODE
+#endif
 
 #ifdef FEATURE_WLAN_INTEGRATED_SOC
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
@@ -1344,7 +1360,7 @@ v_BOOL_t WDA_IsHwFrameTxTranslationCapable(v_PVOID_t pVosGCtx,
 
 #if defined( FEATURE_WLAN_INTEGRATED_SOC )
 #define WDA_UpdateRssiBmps(pvosGCtx,  staId, rssi) \
-        WLANTL_UpdateRssiBmps (pvosGCtx, staId, rssi)
+        WLANTL_UpdateRssiBmps(pvosGCtx, staId, rssi)
 #endif
 
 #ifdef WLAN_PERF 
@@ -2028,4 +2044,27 @@ tANI_U8 WDA_getHostWlanFeatCaps(tANI_U8 featEnumValue);
 ============================================================================*/
 tANI_U8 WDA_getFwWlanFeatCaps(tANI_U8 featEnumValue);
 
+/*==========================================================================
+  FUNCTION   WDA_TransportChannelDebug
+
+  DESCRIPTION
+    Display Transport Channel debugging information
+    User may request to display DXE channel snapshot
+    Or if host driver detects any abnormal stcuk may display
+
+  PARAMETERS
+    displaySnapshot : Dispaly DXE snapshot option
+    enableStallDetect : Enable stall detect feature
+                        This feature will take effect to data performance
+                        Not integrate till fully verification
+
+  RETURN VALUE
+    NONE
+
+===========================================================================*/
+void WDA_TransportChannelDebug
+(
+   v_BOOL_t   displaySnapshot,
+   v_BOOL_t   toggleStallDetect
+);
 #endif

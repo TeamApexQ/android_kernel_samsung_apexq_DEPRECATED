@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -59,7 +59,7 @@
 #define CSR_SCAN_RETURN_AFTER_5_BAND_11d_FOUND      ( 0x80 )
 #define CSR_SCAN_RETURN_AFTER_24_BAND_11d_FOUND     ( 0x40 )
 #define CSR_SCAN_RETURN_AFTER_EITHER_BAND_11d_FOUND ( CSR_SCAN_RETURN_AFTER_5_BAND_11d_FOUND | CSR_SCAN_RETURN_AFTER_24_BAND_11d_FOUND )
-#define CSR_NUM_RSSI_CAT        5
+#define CSR_NUM_RSSI_CAT        15
 #define CSR_MAX_STATISTICS_REQ        10
 
 //Support for multiple session
@@ -76,7 +76,8 @@
      NULL \
 )
 
-
+//Support for "Fast roaming" (i.e., CCX, LFR, or 802.11r.)
+#define CSR_BG_SCAN_OCCUPIED_CHANNEL_LIST_LEN 15
 
 typedef enum
 {
@@ -89,9 +90,15 @@ typedef enum
     eCSR_CFG_DOT11_MODE_11N,   
     eCSR_CFG_DOT11_MODE_POLARIS,    
     eCSR_CFG_DOT11_MODE_TITAN,    
+#ifdef WLAN_FEATURE_11AC
+    eCSR_CFG_DOT11_MODE_11AC,
+#endif
 #ifdef WLAN_SOFTAP_FEATURE
     eCSR_CFG_DOT11_MODE_11G_ONLY,    
     eCSR_CFG_DOT11_MODE_11N_ONLY,   
+#endif 
+#ifdef WLAN_FEATURE_11AC
+    eCSR_CFG_DOT11_MODE_11AC_ONLY,
 #endif 
     //This value can never set to CFG. It is for CSR's internal use
     eCSR_CFG_DOT11_MODE_AUTO,
@@ -157,6 +164,7 @@ typedef enum
     eCsrSmeIssuedFTReassoc,
     eCsrForcedDisassocSta,
     eCsrForcedDeauthSta,
+    eCsrPerformPreauth,
     
 }eCsrRoamReason;
 
@@ -307,7 +315,7 @@ typedef struct tagBssConfigParam
     tANI_U32 uJoinTimeOut;
     tSirMacCapabilityInfo BssCap;
     tANI_BOOLEAN f11hSupport;
-    tAniCBSecondaryMode cbMode;
+    ePhyChanBondState cbMode;
 }tBssConfigParam;
 
 
@@ -316,7 +324,7 @@ typedef struct tagCsrRoamStartBssParams
     tSirMacSSid         ssId;
     tCsrBssid           bssid;    //this is the BSSID for the party we want to join (only use for IBSS or WDS)
     tSirNwType          sirNwType;
-    tAniCBSecondaryMode cbMode;
+    ePhyChanBondState   cbMode;
     tSirMacRateSet      operationalRateSet;
     tSirMacRateSet      extendedRateSet;
     tANI_U8             operationChn;
@@ -337,6 +345,8 @@ typedef struct tagCsrRoamStartBssParams
     tVOS_CON_MODE       bssPersona;
     tANI_U16            nRSNIELength;  //The byte count in the pRSNIE, if 0, pRSNIE is ignored.
     tANI_U8             *pRSNIE;     //If not null, it has the IE byte stream for RSN
+    tANI_BOOLEAN        updatebeaconInterval; //Flag used to indicate update 
+                                             // beaconInterval 
 }tCsrRoamStartBssParams;
 
 
@@ -488,6 +498,7 @@ typedef struct tagCsrConfig
     tANI_BOOLEAN ProprietaryRatesEnabled;
     tANI_BOOLEAN  fenableMCCMode;
     tANI_U16 TxRate;
+    tANI_U8  fAllowMCCGODiffBI;
     tANI_U8 AdHocChannel24;
     tANI_U8 AdHocChannel5G;
     tANI_U32 impsSleepTime;     //in units of microseconds
@@ -523,6 +534,13 @@ typedef struct tagCsrConfig
     tANI_U32  nPassiveMaxChnTime;    //in units of milliseconds
     tANI_U32  nActiveMinChnTime;     //in units of milliseconds
     tANI_U32  nActiveMaxChnTime;     //in units of milliseconds
+#ifdef WLAN_AP_STA_CONCURRENCY
+    tANI_U32  nPassiveMinChnTimeConc;    //in units of milliseconds
+    tANI_U32  nPassiveMaxChnTimeConc;    //in units of milliseconds
+    tANI_U32  nActiveMinChnTimeConc;     //in units of milliseconds
+    tANI_U32  nActiveMaxChnTimeConc;     //in units of milliseconds
+    tANI_U32  nRestTimeConc;             //in units of milliseconds
+#endif
 
     tANI_BOOLEAN IsIdleScanEnabled;
     //in dBm, the maximum TX power
@@ -540,12 +558,17 @@ typedef struct tagCsrConfig
     tCsr11rConfig csr11rConfig;
 #endif
 
+#ifdef FEATURE_WLAN_LFR
+    tANI_U8   isFastRoamIniFeatureEnabled;
+#endif
+
 #ifdef FEATURE_WLAN_CCX
     tANI_U8   isCcxIniFeatureEnabled;
 #endif
 
-#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX)
+#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
     tANI_U8   isFastTransitionEnabled;
+    tANI_U8   RoamRssiDiff;
 #endif
 
 #ifdef WLAN_FEATURE_NEIGHBOR_ROAMING
@@ -557,12 +580,15 @@ typedef struct tagCsrConfig
     tANI_BOOLEAN addTSWhenACMIsOff;
 
     tANI_BOOLEAN fValidateList;
-#ifndef BMPS_WORKAROUND_NOT_NEEDED
+    //Remove this code once SLM_Sessionization is supported 
+    //BMPS_WORKAROUND_NOT_NEEDED
     tANI_BOOLEAN doBMPSWorkaround;
-#endif
 
     //To enable/disable scanning 2.4Ghz channels twice on a single scan request from HDD
     tANI_BOOLEAN fScanTwice;
+#ifdef WLAN_FEATURE_11AC
+    tANI_U32  nVhtChannelWidth;
+#endif
 
 }tCsrConfig;
 
@@ -659,11 +685,19 @@ typedef struct tagCsrScanStruct
     * (apprx 1.3 sec) */
     tANI_BOOLEAN fEnableDFSChnlScan;
 
+    /*
+    * To enable/disable scanning only 2.4Ghz channels on first scan
+    */
+    tANI_BOOLEAN fFirstScanOnly2GChnl;
+
     tANI_BOOLEAN fDropScanCmd; //true means we don't accept scan commands
 
 #ifdef WLAN_AP_STA_CONCURRENCY
     tDblLinkList scanCmdPendingList;
 #endif    
+    tCsrChannel occupiedChannels;   //This includes all channels on which candidate APs are found
+
+    tANI_BOOLEAN fIgnore_chan165;
 }tCsrScanStruct;
 
 
@@ -809,6 +843,10 @@ typedef struct tagCsrRoamSession
     tANI_U32 roamTS1;
 #endif
     tANI_U8 bRefAssocStartCnt;   //Tracking assoc start indication
+   /* to force the AP initiate fresh 802.1x authentication after re-association need to clear 
+    * the PMKID cache. To clear the cache in this particular case this is added
+    * it is needed by the HS 2.0 passpoint certification 5.2.a and b testcases */ 
+    tANI_BOOLEAN fIgnorePMKIDCache;
 } tCsrRoamSession;
 
 typedef struct tagCsrRoamStruct
@@ -855,8 +893,14 @@ typedef struct tagCsrRoamStruct
 #ifdef WLAN_FEATURE_NEIGHBOR_ROAMING    
     tCsrNeighborRoamControlInfo neighborRoamInfo;
 #endif
+#ifdef FEATURE_WLAN_LFR
+    tANI_U8   isFastRoamIniFeatureEnabled;
+#endif
 #ifdef FEATURE_WLAN_CCX
     tANI_U8   isCcxIniFeatureEnabled;
+#endif
+#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
+    tANI_U8   RoamRssiDiff;
 #endif
 }tCsrRoamStruct;
 
@@ -901,10 +945,19 @@ typedef struct tagCsrRoamStruct
         ((eCSR_DOT11_MODE_11a == (pMac)->roam.configParam.phyMode) ||\
         (eCSR_DOT11_MODE_11a_ONLY == (pMac)->roam.configParam.phyMode))
         
+#ifdef WLAN_FEATURE_11AC
+#define CSR_IS_PHY_MODE_DUAL_BAND(phyMode) \
+        ((eCSR_DOT11_MODE_abg & (phyMode)) || (eCSR_DOT11_MODE_11n & (phyMode)) || \
+        (eCSR_DOT11_MODE_11ac & (phyMode)) || \
+        (eCSR_DOT11_MODE_TAURUS & (phyMode)) || \
+        (eCSR_DOT11_MODE_AUTO & (phyMode)))
+#else
 #define CSR_IS_PHY_MODE_DUAL_BAND(phyMode) \
         ((eCSR_DOT11_MODE_abg & (phyMode)) || (eCSR_DOT11_MODE_11n & (phyMode)) || \
         (eCSR_DOT11_MODE_TAURUS & (phyMode)) || \
         (eCSR_DOT11_MODE_AUTO & (phyMode)))
+#endif
+
 
 // this function returns TRUE if the NIC is operating exclusively in the 2.4 GHz band, meaning
 // it is NOT operating in the 5.0 GHz band.
@@ -940,7 +993,7 @@ typedef struct tagCsrRoamStruct
         (CSR_IS_OPEARTING_DUAL_BAND((pMac)) || CSR_IS_RADIO_BG_ONLY((pMac)) || CSR_IS_24_BAND_ONLY((pMac)))
 
 #define CSR_IS_CHANNEL_5GHZ(chnNum) \
-        ((chnNum) > CSR_MAX_24GHz_CHANNEL_NUMBER)
+        (((chnNum) >= CSR_MIN_5GHz_CHANNEL_NUMBER) && ((chnNum) <= CSR_MAX_5GHz_CHANNEL_NUMBER))
 
 #define CSR_IS_CHANNEL_24GHZ(chnNum) \
         (((chnNum) > 0) && ((chnNum) <= CSR_MAX_24GHz_CHANNEL_NUMBER))
@@ -1000,17 +1053,17 @@ tANI_BOOLEAN csrIsConnStateConnectedWds( tpAniSirGlobal pMac, tANI_U32 sessionId
 tANI_BOOLEAN csrIsConnStateDisconnectedWds( tpAniSirGlobal pMac, tANI_U32 sessionId );
 tANI_BOOLEAN csrIsAnySessionInConnectState( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsAllSessionDisconnected( tpAniSirGlobal pMac );
+tANI_BOOLEAN csrIsAnySessionConnected( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsInfraConnected( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsConcurrentInfraConnected( tpAniSirGlobal pMac );
-#ifndef BMPS_WORKAROUND_NOT_NEEDED
 tANI_BOOLEAN csrIsConcurrentSessionRunning( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsInfraApStarted( tpAniSirGlobal pMac );
-#endif
 tANI_BOOLEAN csrIsIBSSStarted( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsBTAMPStarted( tpAniSirGlobal pMac );
 tANI_BOOLEAN csrIsBTAMP( tpAniSirGlobal pMac, tANI_U32 sessionId );
 eHalStatus csrIsBTAMPAllowed( tpAniSirGlobal pMac, tANI_U32 chnId );
-tANI_BOOLEAN csrIsValidMcConcurrentSession(tpAniSirGlobal pMac, tANI_U32 sessionId);
+tANI_BOOLEAN csrIsValidMcConcurrentSession(tpAniSirGlobal pMac, tANI_U32 sessionId,
+                                                  tSirBssDescription *pBssDesc);
 #ifdef WLAN_SOFTAP_FEATURE
 tANI_BOOLEAN csrIsConnStateConnectedInfraAp( tpAniSirGlobal pMac, tANI_U32 sessionId );
 #endif
@@ -1181,7 +1234,14 @@ tANI_BOOLEAN csrRoamIs11rAssoc(tpAniSirGlobal pMac);
 tANI_BOOLEAN csrRoamIsCCXAssoc(tpAniSirGlobal pMac);
 #endif
 
-#ifndef BMPS_WORKAROUND_NOT_NEEDED
+//Remove this code once SLM_Sessionization is supported 
+//BMPS_WORKAROUND_NOT_NEEDED
 void csrDisconnectAllActiveSessions(tpAniSirGlobal pMac);
+
+#ifdef FEATURE_WLAN_LFR
+//Returns whether "Legacy Fast Roaming" is enabled...or not
+tANI_BOOLEAN csrRoamIsFastRoamEnabled(tpAniSirGlobal pMac, tANI_U32 sessionId);
+tANI_BOOLEAN csrIsChannelPresentInList( tANI_U8 *pChannelList, int  numChannels, tANI_U8   channel );
+VOS_STATUS csrAddToChannelListFront( tANI_U8 *pChannelList, int  numChannels, tANI_U8   channel );
 #endif
 

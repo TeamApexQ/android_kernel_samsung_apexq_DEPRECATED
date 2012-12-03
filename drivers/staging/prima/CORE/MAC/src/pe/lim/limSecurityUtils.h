@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -34,9 +34,9 @@
 #define __LIM_SECURITY_UTILS_H
 #include "sirMacProtDef.h" //for tSirMacAuthFrameBody
 
-#define LIM_ENCR_AUTH_BODY_LEN  sizeof(tSirMacAuthFrameBody) + \
+#define LIM_ENCR_AUTH_BODY_LEN  (sizeof(tSirMacAuthFrameBody) + \
                                 SIR_MAC_WEP_IV_LENGTH + \
-                                SIR_MAC_WEP_ICV_LENGTH
+                                SIR_MAC_WEP_ICV_LENGTH)
 struct tLimPreAuthNode;
 
 #ifdef WLAN_SOFTAP_FEATURE
@@ -68,7 +68,7 @@ void limPostSmeSetKeysCnf( tpAniSirGlobal, tLimMlmSetKeysReq *, tLimMlmSetKeysCn
 
 void limSendRemoveBssKeyReq(tpAniSirGlobal pMac, tLimMlmRemoveKeyReq * pMlmRemoveKeyReq,tpPESession);
 void limSendRemoveStaKeyReq(tpAniSirGlobal pMac, tLimMlmRemoveKeyReq * pMlmRemoveKeyReq, tANI_U16 staIdx,tpPESession);
-void limPostSmeRemoveKeyCnf(tpAniSirGlobal pMac, tLimMlmRemoveKeyReq * pMlmRemoveKeyReq, tLimMlmRemoveKeyCnf * mlmRemoveKeyCnf);
+void limPostSmeRemoveKeyCnf(tpAniSirGlobal pMac, tpPESession psessionEntry, tLimMlmRemoveKeyReq * pMlmRemoveKeyReq, tLimMlmRemoveKeyCnf * mlmRemoveKeyCnf);
 
 #define  PTAPS  0xedb88320
 

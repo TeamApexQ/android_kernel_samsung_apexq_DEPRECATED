@@ -1,7 +1,13 @@
-MODNAME := prima_wlan
+MODNAME := wlan
 
 #Do we panic on bug?  default is to warn
 PANIC_ON_BUG := 0
+
+#BUILD_DEBUG_VERSION := 1
+#BUILD_DIAG_VERSION := 1
+
+#Re-enable wifi on WDI timeout
+RE_ENABLE_WIFI_ON_WDI_TIMEOUT := 0
 
 ifeq ($(CONFIG_CFG80211),y)
 HAVE_CFG80211 := 1
@@ -425,8 +431,6 @@ OBJS :=		$(BAP_OBJS)  \
 
 EXTRA_CFLAGS += $(INCS)
 
-# By default the compiler will complain about frames larger than 1K.
-# Some of the WLAN structures are larger, so we increase the size.
 # Note that Linux kernel threads have an 8K stack, so take care not
 # to exceed that value in a "normal" call tree
 EXTRA_CFLAGS += -Wframe-larger-than=4096
@@ -448,6 +452,10 @@ CDEFINES  := -DANI_PRODUCT_TYPE_CLIENT=1 \
 		-DWNI_POLARIS_FW_OS=6 \
 		-DADVANCED=3 \
 		-DWNI_POLARIS_FW_PACKAGE=9 \
+		-DTRACE_RECORD \
+		-DPE_DEBUG_LOGW \
+		-DPE_DEBUG_LOGE \
+		-DDEBUG \
 		-DANI_LOGDUMP \
 		-DWLAN_PERF \
 		-DUSE_LOCKED_QUEUE \
@@ -455,6 +463,7 @@ CDEFINES  := -DANI_PRODUCT_TYPE_CLIENT=1 \
 		-DFEATURE_WLAN_UAPSD_FW_TRG_FRAMES \
 		-DWLAN_SOFTAP_FEATURE \
 		-Wall\
+		-DWLAN_DEBUG \
 		-D__linux__ \
 		-DMSM_PLATFORM \
 		-DFEATURE_WLAN_INTEGRATED_SOC \
@@ -471,11 +480,6 @@ CDEFINES  := -DANI_PRODUCT_TYPE_CLIENT=1 \
 		-DFEATURE_WLAN_SCAN_PNO \
 		-DWLAN_FEATURE_PACKET_FILTERING \
 		-DWLAN_FEATURE_VOWIFI
-#		-DPE_DEBUG_LOGW \
-#		-DPE_DEBUG_LOGE \
-#		-DDEBUG \
-#		-DTRACE_RECORD \
-#		-DWLAN_DEBUG \
 
 # there are still pieces of code which are conditional upon these
 # need to investigate all of them to see which should also be
@@ -521,9 +525,20 @@ ifeq ($(PANIC_ON_BUG),1)
 CDEFINES += -DPANIC_ON_BUG
 endif
 
+ifeq ($(RE_ENABLE_WIFI_ON_WDI_TIMEOUT),1)
+CDEFINES += -DWDI_RE_ENABLE_WIFI_ON_WDI_TIMEOUT
+endif
+
 ifeq ($(CONFIG_PRIMA_WLAN_BTAMP),y)
 CDEFINES += -DWLAN_BTAMP_FEATURE
 endif
+
+CDEFINES += -DWLAN_FEATURE_11AC
+CDEFINES += -DWLAN_FEATURE_11AC_HIGH_TP
+CDEFINES += -DWLAN_FEATURE_P2P_DEBUG
+CDEFINES += -DWLAN_ENABLE_AGEIE_ON_SCAN_RESULTS
+
+CDEFINES += -DWLAN_OPEN_SOURCE
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 

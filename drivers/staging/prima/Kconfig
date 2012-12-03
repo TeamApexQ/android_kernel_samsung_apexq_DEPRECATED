@@ -5,9 +5,9 @@ config PRIMA_WLAN
 	help
 	Add support for the Qualcomm Atheros Prima WLAN module
 
-	depends on WLAN
-	depends on CFG80211
-    depends on WCNSS_CORE
+#	depends on WLAN
+#	depends on CFG80211
+#        depends on WCNSS_CORE
 
 if PRIMA_WLAN != n
 

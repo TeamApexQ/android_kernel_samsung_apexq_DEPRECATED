@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -82,6 +82,9 @@ static const hdd_tmLevelAction_t thermalMigrationAction[WLAN_HDD_TM_LEVEL_MAX] =
    /* TM Level 4, MAX TM level, enter IMPS */
    {0, 1, 1000, 500, 10}
 };
+#ifdef HAVE_WCNSS_SUSPEND_RESUME_NOTIFY
+static bool suspend_notify_sent;
+#endif
 
 
 /*----------------------------------------------------------------------------
@@ -112,7 +115,7 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
    {
        /* Fail this suspend */
        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: Fail wlan suspend: not in IMPS/BMPS", __func__);
-       return -1;
+       return -EPERM;
    }
 
    /*
@@ -135,7 +138,7 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL, "%s: Not able to suspend TX thread timeout happened", __func__);
       clear_bit(TX_SUSPEND_EVENT_MASK, &vosSchedContext->txEventFlag);
 
-      return -1;
+      return -ETIME;
    }
    /* Set the Tx Thread as Suspended */
    pHddCtx->isTxThreadSuspended = TRUE;
@@ -162,7 +165,7 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
        /* Set the Tx Thread as Resumed */
        pHddCtx->isTxThreadSuspended = FALSE;
 
-       return -1;
+       return -ETIME;
    }
 
    /* Set the Rx Thread as Suspended */
@@ -196,7 +199,7 @@ static int wlan_suspend(hdd_context_t* pHddCtx)
        /* Set the Tx Thread as Resumed */
        pHddCtx->isTxThreadSuspended = FALSE;
 
-       return -1;
+       return -ETIME;
    }
 
    /* Set the Mc Thread as Suspended */
@@ -298,6 +301,13 @@ int hddDevSuspendHdlr(struct device *dev)
       return ret;
    }
 
+#ifdef HAVE_WCNSS_SUSPEND_RESUME_NOTIFY
+   if(hdd_is_suspend_notify_allowed(pHddCtx))
+   {
+      wcnss_suspend_notify();
+      suspend_notify_sent = true;
+   }
+#endif
    return 0;
 }
 
@@ -328,6 +338,13 @@ int hddDevResumeHdlr(struct device *dev)
 
    /* Resume the wlan driver */
    wlan_resume(pHddCtx);
+#ifdef HAVE_WCNSS_SUSPEND_RESUME_NOTIFY
+   if(suspend_notify_sent == true)
+   {
+      wcnss_resume_notify();
+      suspend_notify_sent = false;
+   }
+#endif
 
    return 0;
 }
@@ -406,6 +423,15 @@ void hddDevTmTxBlockTimeoutHandler(void *usrData)
    }
 
    staAdapater = hdd_get_adapter(pHddCtx, WLAN_HDD_INFRA_STATION);
+
+   if(NULL == staAdapater)
+   {
+      VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_ERROR,
+                "%s: NULL Adapter", __func__);
+      VOS_ASSERT(0);
+      return;
+   }
+
    if(mutex_lock_interruptible(&pHddCtx->tmInfo.tmOperationLock))
    {
       VOS_TRACE(VOS_MODULE_ID_HDD,VOS_TRACE_LEVEL_ERROR,
@@ -415,7 +441,9 @@ void hddDevTmTxBlockTimeoutHandler(void *usrData)
    pHddCtx->tmInfo.txFrameCount = 0;
 
    /* Resume TX flow */
+    
    netif_tx_start_all_queues(staAdapater->dev);
+
    mutex_unlock(&pHddCtx->tmInfo.tmOperationLock);
 
    return;

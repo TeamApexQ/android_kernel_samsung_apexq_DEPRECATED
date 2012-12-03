@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -40,7 +40,6 @@
 #include <linux/pm.h>
 #include <linux/wait.h>
 #include <linux/earlysuspend.h>
-#include <linux/wcnss_wlan.h>
 #include <wlan_hdd_includes.h>
 #include <wlan_qct_driver.h>
 #include <linux/wakelock.h>
@@ -81,6 +80,7 @@
 #include "bap_hdd_misc.h"
 #endif
 
+#include <linux/wcnss_wlan.h>
 #include <linux/inetdevice.h>
 #include <wlan_hdd_cfg.h>
 /**-----------------------------------------------------------------------------
@@ -97,6 +97,7 @@
 #include "wlan_hdd_power.h"
 #include "wlan_hdd_packet_filtering.h"
 
+#define HDD_SSR_BRING_UP_TIME 10000
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static struct early_suspend wlan_early_suspend;
 #endif
@@ -118,8 +119,10 @@ extern tVOS_CON_MODE hdd_get_conparam ( void );
 #endif
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
-extern void wlan_hdd_set_mc_addr_list(hdd_context_t *pHddCtx, v_U8_t set);
+extern void wlan_hdd_set_mc_addr_list(hdd_context_t *pHddCtx, v_U8_t set, v_U8_t sessionId);
 #endif
+static struct timer_list ssr_timer;
+static bool ssr_timer_started;
 
 //Callback invoked by PMC to report status of standby request
 void hdd_suspend_standby_cbk (void *callbackContext, eHalStatus status)
@@ -624,7 +627,7 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
       if (pAdapter != NULL)
       {
          VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-               "%s: Can't set multicast addr filtering in P2P-GO HDD", __FUNCTION__);
+               "%s: Can't set multicast addr filtering in P2P-GO HDD", __func__);
          return VOS_STATUS_E_FAILURE;
       }
 
@@ -634,7 +637,7 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
 
       if(pAdapter == NULL)
       {
-         VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,"%s: HDD adapter context is Null", __FUNCTION__);
+         VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,"%s: HDD adapter context is Null", __func__);
          return VOS_STATUS_E_FAILURE;
       }
    }
@@ -647,7 +650,7 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
          pAdapter = hdd_get_adapter(pHddCtx,WLAN_HDD_P2P_CLIENT);
          if(pAdapter == NULL)
          {
-            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,"%s: HDD adapter context is Null", __FUNCTION__);
+            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,"%s: HDD adapter context is Null", __func__);
             return VOS_STATUS_E_FAILURE;
          }
       }
@@ -675,12 +678,22 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
 
            hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Enabled \n", __func__);
 
-           if((HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST ==
-                   pHddCtx->cfg_ini->mcastBcastFilterSetting )
-                    || (HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST ==
-                    pHddCtx->cfg_ini->mcastBcastFilterSetting))
+           if(pHddCtx->dynamic_mcbc_filter.enableCfg)
            {
-               //MCAST filter is set by hdd_conf_mcastbcast_filter fn call
+               if((HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST == 
+              pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting) ||
+              (HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST == 
+              pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting))
+               {
+                   offLoadRequest.enableOrDisable = 
+                           SIR_OFFLOAD_ARP_AND_BCAST_FILTER_ENABLE;
+               }
+           }
+           else if((HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST ==
+              pHddCtx->cfg_ini->mcastBcastFilterSetting ) || 
+              (HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST ==
+              pHddCtx->cfg_ini->mcastBcastFilterSetting))
+           {
                offLoadRequest.enableOrDisable = 
                        SIR_OFFLOAD_ARP_AND_BCAST_FILTER_ENABLE;
            }
@@ -698,7 +711,8 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
                   offLoadRequest.params.hostIpv4Addr[3]);
 
           if (eHAL_STATUS_SUCCESS != 
-                    sme_SetHostOffload(WLAN_HDD_GET_HAL_CTX(pAdapter) , &offLoadRequest))
+                    sme_SetHostOffload(WLAN_HDD_GET_HAL_CTX(pAdapter), 
+                                       pAdapter->sessionId, &offLoadRequest))
           {
               hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Failed to enable HostOffload "
                       "feature\n", __func__);
@@ -718,7 +732,8 @@ VOS_STATUS hdd_conf_hostarpoffload(hdd_context_t* pHddCtx, v_BOOL_t fenable)
        offLoadRequest.enableOrDisable = SIR_OFFLOAD_DISABLE;
        offLoadRequest.offloadType =  SIR_IPV4_ARP_REPLY_OFFLOAD;
 
-       if (eHAL_STATUS_SUCCESS != sme_SetHostOffload(WLAN_HDD_GET_HAL_CTX(pAdapter), &offLoadRequest))
+       if (eHAL_STATUS_SUCCESS != sme_SetHostOffload(WLAN_HDD_GET_HAL_CTX(pAdapter), pAdapter->sessionId, 
+                                                     &offLoadRequest))
        {
             hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Failure to disable host "
                              "offload feature\n", __func__);
@@ -764,12 +779,13 @@ void hdd_conf_mcastbcast_filter(hdd_context_t* pHddCtx, v_BOOL_t setfilter)
        pHddCtx->hdd_mcastbcast_filter_set = TRUE;
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
 #ifdef FEATURE_WLAN_INTEGRATED_SOC
 static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
                                  hdd_adapter_t *pAdapter)
 {
     eHalStatus halStatus = eHAL_STATUS_FAILURE;
-    VOS_STATUS vstatus;
+    VOS_STATUS vstatus = VOS_STATUS_E_FAILURE;
     tpSirWlanSuspendParam wlanSuspendParam =
       vos_mem_malloc(sizeof(tSirWlanSuspendParam));
 
@@ -792,25 +808,87 @@ static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
             vstatus = hdd_conf_hostarpoffload(pHddCtx, TRUE);
             if (!VOS_IS_STATUS_SUCCESS(vstatus))
             {
+                if(pHddCtx->dynamic_mcbc_filter.enableCfg)
+                {
+                  wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                          pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting;
+                  pHddCtx->dynamic_mcbc_filter.enableSuspend = TRUE;
+                }
+                else
+                {
+                  wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                             pHddCtx->cfg_ini->mcastBcastFilterSetting;
+                }
                 hddLog(VOS_TRACE_LEVEL_INFO,
                        "%s:Failed to enable ARPOFFLOAD Feature %d\n",
                        __func__, vstatus);
             }
-        }
+            else
+            {
+                if(pHddCtx->dynamic_mcbc_filter.enableCfg)
+                {
+                    if((HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST == 
+                         pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting))
+                   {
+                       wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                                     HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST;
+                   }
+                   else if((HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST == 
+                         pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting))
+                   {
+                       wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                                             HDD_MCASTBCASTFILTER_FILTER_NONE;
+                   }
+                   else
+                   {
+                       wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                          pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting;
+                   }
 
-        if(pHddCtx->dynamic_mcbc_filter.enableCfg)
-        {
-            wlanSuspendParam->configuredMcstBcstFilterSetting = 
-                         pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting;
-            pHddCtx->dynamic_mcbc_filter.enableSuspend = TRUE;
-            pHddCtx->dynamic_mcbc_filter.mcBcFilterSuspend = 
-                         wlanSuspendParam->configuredMcstBcstFilterSetting;
+                   pHddCtx->dynamic_mcbc_filter.enableSuspend = TRUE;
+                   pHddCtx->dynamic_mcbc_filter.mcBcFilterSuspend = 
+                        wlanSuspendParam->configuredMcstBcstFilterSetting;
+                }
+                else
+                {
+                    if (HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST == 
+                        pHddCtx->cfg_ini->mcastBcastFilterSetting)
+                    {
+                        wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                                     HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST;
+                    }
+                    else if(HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST == 
+                            pHddCtx->cfg_ini->mcastBcastFilterSetting)
+                    {
+                        wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                                             HDD_MCASTBCASTFILTER_FILTER_NONE;
+                    }
+                    else
+                    {
+                        wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                                 pHddCtx->cfg_ini->mcastBcastFilterSetting;
+                    }
+
+                    pHddCtx->dynamic_mcbc_filter.enableSuspend = FALSE;
+                }
+            }
         }
         else
         {
-            pHddCtx->dynamic_mcbc_filter.enableSuspend = FALSE;
-            wlanSuspendParam->configuredMcstBcstFilterSetting = 
-                                    pHddCtx->cfg_ini->mcastBcastFilterSetting;
+            if(pHddCtx->dynamic_mcbc_filter.enableCfg)
+            {
+                wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                      pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting;
+                pHddCtx->dynamic_mcbc_filter.enableSuspend = TRUE;
+                pHddCtx->dynamic_mcbc_filter.mcBcFilterSuspend = 
+                        wlanSuspendParam->configuredMcstBcstFilterSetting;
+            }
+            else
+            {
+                pHddCtx->dynamic_mcbc_filter.enableSuspend = FALSE;
+                wlanSuspendParam->configuredMcstBcstFilterSetting = 
+                             pHddCtx->cfg_ini->mcastBcastFilterSetting;
+            }
         }
 
 #ifdef WLAN_FEATURE_PACKET_FILTERING
@@ -824,7 +902,7 @@ static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
                     (WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))->conn_info.connState))
            {
               /*set the filter*/
-              wlan_hdd_set_mc_addr_list(pHddCtx, TRUE);
+              wlan_hdd_set_mc_addr_list(pHddCtx, TRUE, pAdapter->sessionId);
            }
         }
 #endif
@@ -837,7 +915,7 @@ static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
     }
 }
 
-static void hdd_conf_resume_ind(hdd_context_t* pHddCtx)
+static void hdd_conf_resume_ind(hdd_context_t* pHddCtx, v_U8_t sessionId)
 {
     VOS_STATUS vstatus;
     tpSirWlanResumeParam wlanResumeParam =
@@ -882,14 +960,13 @@ static void hdd_conf_resume_ind(hdd_context_t* pHddCtx)
        {
           /*Filter applied during suspend mode*/
           /*Clear it here*/
-          wlan_hdd_set_mc_addr_list(pHddCtx, FALSE);
+          wlan_hdd_set_mc_addr_list(pHddCtx, FALSE, sessionId);
        }
     }
 #endif
 }
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
 //Suspend routine registered with Android OS
 void hdd_suspend_wlan(struct early_suspend *wlan_suspend)
 {
@@ -960,9 +1037,10 @@ void hdd_suspend_wlan(struct early_suspend *wlan_suspend)
    {
        pAdapter = pAdapterNode->pAdapter;
        if ( (WLAN_HDD_INFRA_STATION != pAdapter->device_mode)
+         && (WLAN_HDD_SOFTAP != pAdapter->device_mode)
          && (WLAN_HDD_P2P_CLIENT != pAdapter->device_mode) )
 
-       {  //just do for station interface
+       {  // we skip this registration for modes other than STA, SAP and P2P client modes.
            status = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
            pAdapterNode = pNext;
            continue;
@@ -983,8 +1061,13 @@ void hdd_suspend_wlan(struct early_suspend *wlan_suspend)
        }
 #endif
 
+   //Apply Dynamic Dtim For P2P
+   //Only if ignoreDynamicDtimInP2pMode is not set in ini
    if((pHddCtx->cfg_ini->enableDynamicDTIM ||
-       pHddCtx->cfg_ini->enableModulatedDTIM) && 
+       pHddCtx->cfg_ini->enableModulatedDTIM) &&
+       ((WLAN_HDD_INFRA_STATION == pAdapter->device_mode) ||
+        ((WLAN_HDD_P2P_CLIENT == pAdapter->device_mode) &&
+         !(pHddCtx->cfg_ini->ignoreDynamicDtimInP2pMode))) &&
        (eANI_BOOLEAN_TRUE == pAdapter->higherDtimTransition) &&
       (eConnectionState_Associated == 
          (WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))->conn_info.connState) &&
@@ -1106,13 +1189,13 @@ void hdd_register_mcast_bcast_filter(hdd_context_t *pHddCtx)
    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
    if (NULL == pVosContext)
    {
-      hddLog(LOGE, "%s: Invalid pContext", __FUNCTION__);
+      hddLog(LOGE, "%s: Invalid pContext", __func__);
       return;
    }
    smeContext = vos_get_context(VOS_MODULE_ID_SME, pVosContext);
    if (NULL == smeContext)
    {
-      hddLog(LOGE, "%s: Invalid smeContext", __FUNCTION__);
+      hddLog(LOGE, "%s: Invalid smeContext", __func__);
       return;
    }
 
@@ -1133,13 +1216,13 @@ void hdd_unregister_mcast_bcast_filter(hdd_context_t *pHddCtx)
    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
    if (NULL == pVosContext)
    {
-      hddLog(LOGE, "%s: Invalid pContext", __FUNCTION__);
+      hddLog(LOGE, "%s: Invalid pContext", __func__);
       return;
    }
    smeContext = vos_get_context(VOS_MODULE_ID_SME, pVosContext);
    if (NULL == smeContext)
    {
-      hddLog(LOGE, "%s: Invalid smeContext", __FUNCTION__);
+      hddLog(LOGE, "%s: Invalid smeContext", __func__);
       return;
    }
 
@@ -1218,8 +1301,9 @@ void hdd_resume_wlan(struct early_suspend *wlan_suspend)
    {
        pAdapter = pAdapterNode->pAdapter;
        if ( (WLAN_HDD_INFRA_STATION != pAdapter->device_mode)
+         && (WLAN_HDD_SOFTAP != pAdapter->device_mode)
          && (WLAN_HDD_P2P_CLIENT != pAdapter->device_mode) )
-       {  //just do for station interface
+       {  // we skip this registration for modes other than STA, SAP and P2P client modes.
             status = hdd_get_next_adapter ( pHddCtx, pAdapterNode, &pNext );
             pAdapterNode = pNext;
             continue;
@@ -1265,7 +1349,7 @@ void hdd_resume_wlan(struct early_suspend *wlan_suspend)
 
          if(pHddCtx->hdd_mcastbcast_filter_set == TRUE) {
 #ifdef FEATURE_WLAN_INTEGRATED_SOC
-           hdd_conf_resume_ind(pHddCtx);
+           hdd_conf_resume_ind(pHddCtx, pAdapter->sessionId);
 #else
                   hdd_conf_mcastbcast_filter(pHddCtx, FALSE);
                               pHddCtx->hdd_mcastbcast_filter_set = FALSE;
@@ -1637,7 +1721,7 @@ VOS_STATUS hdd_wlan_reset(void)
    vosStatus = hdd_wmm_init(pHddCtx);
    if ( !VOS_IS_STATUS_SUCCESS( vosStatus ))
    {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __FUNCTION__);
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __func__);
       goto err_vosclose;
    }
 
@@ -1740,7 +1824,7 @@ err_pwr_fail:
    vos_mem_exit();
 #endif
 
-   return -1;
+   return -EPERM;
 
 success:
    //Trigger replay of BTC events
@@ -1842,6 +1926,32 @@ void unregister_wlan_suspend(void)
 }
 #endif
 
+static void hdd_ssr_timer_init(void)
+{
+    init_timer(&ssr_timer);
+}
+static void hdd_ssr_timer_del(void)
+{
+    del_timer(&ssr_timer);
+    ssr_timer_started = false;
+}
+static void hdd_ssr_timer_cb(unsigned long data)
+{
+    hddLog(VOS_TRACE_LEVEL_FATAL, "%s: HDD SSR timer expired", __func__);
+    VOS_BUG(0);
+}
+static void hdd_ssr_timer_start(int msec)
+{
+    if(ssr_timer_started)
+    {
+        hddLog(VOS_TRACE_LEVEL_FATAL, "%s: trying to start SSR timer when it's running"
+                ,__func__);
+    }
+    ssr_timer.expires = jiffies + msecs_to_jiffies(msec);
+    ssr_timer.function = hdd_ssr_timer_cb;
+    add_timer(&ssr_timer);
+    ssr_timer_started = true;
+}
 /* the HDD interface to WLAN driver shutdown,
  * the primary shutdown function in SSR
  */
@@ -1853,6 +1963,10 @@ VOS_STATUS hdd_wlan_shutdown(void)
    pVosSchedContext vosSchedContext = NULL;
 
    hddLog(VOS_TRACE_LEVEL_FATAL, "%s: WLAN driver shutting down! ",__func__);
+
+   /* if re-init never happens, then do SSR1 */
+   hdd_ssr_timer_init();
+   hdd_ssr_timer_start(HDD_SSR_BRING_UP_TIME);
 
    /* Get the global VOSS context. */
    pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
@@ -2006,6 +2120,7 @@ VOS_STATUS hdd_wlan_re_init(void)
    WLANBAP_ConfigType btAmpConfig;
 #endif
 
+   hdd_ssr_timer_del();
    hdd_prevent_suspend();
    /* Re-open VOSS, it is a re-open b'se control transport was never closed. */
    vosStatus = vos_open(&pVosContext, 0);
@@ -2043,7 +2158,7 @@ VOS_STATUS hdd_wlan_re_init(void)
    vosStatus = hdd_wmm_init(pHddCtx);
    if ( !VOS_IS_STATUS_SUCCESS( vosStatus ))
    {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __FUNCTION__);
+      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: hdd_wmm_init failed", __func__);
       goto err_vosclose;
    }
 
@@ -2084,6 +2199,9 @@ VOS_STATUS hdd_wlan_re_init(void)
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_start failed",__func__);
       goto err_vosclose;
    }
+
+   /* Exchange capability info between Host and FW and also get versioning info from FW */
+   hdd_exchange_version_and_caps(pHddCtx);
 
    vosStatus = hdd_post_voss_start_config( pHddCtx );
    if ( !VOS_IS_STATUS_SUCCESS( vosStatus ) )
@@ -2135,11 +2253,13 @@ VOS_STATUS hdd_wlan_re_init(void)
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: hddRegisterPmOps failed",__func__);
       goto err_bap_stop;
    }
+#ifdef CONFIG_HAS_EARLYSUSPEND
    // Register suspend/resume callbacks
    if(pHddCtx->cfg_ini->nEnableSuspend)
    {
       register_wlan_suspend();
    }
+#endif
    /* Allow the phone to go to sleep */
    hdd_allow_suspend();
    /* register for riva power on lock */
@@ -2152,11 +2272,20 @@ VOS_STATUS hdd_wlan_re_init(void)
    goto success;
 
 err_unregister_pmops:
+#ifdef CONFIG_HAS_EARLYSUSPEND
+   /* unregister suspend/resume callbacks */
+   if (pHddCtx->cfg_ini->nEnableSuspend)
+      unregister_wlan_suspend();
+#endif
    hddDeregisterPmOps(pHddCtx);
 
 err_bap_stop:
+#ifdef CONFIG_HAS_EARLYSUSPEND
+   hdd_unregister_mcast_bcast_filter(pHddCtx);
+#endif
+   hdd_close_all_adapters(pHddCtx);
 #ifdef WLAN_BTAMP_FEATURE
-  WLANBAP_Stop(pVosContext);
+   WLANBAP_Stop(pVosContext);
 #endif
 
 #ifdef WLAN_BTAMP_FEATURE
@@ -2172,17 +2301,11 @@ err_vosclose:
    vos_sched_close(pVosContext);
    if (pHddCtx)
    {
-#ifdef CONFIG_HAS_EARLYSUSPEND
-       /* unregister suspend/resume callbacks */
-       if (pHddCtx->cfg_ini->nEnableSuspend)
-           unregister_wlan_suspend();
-#endif
        /* Unregister the Net Device Notifier */
        unregister_netdevice_notifier(&hdd_netdev_notifier);
        /* Clean up HDD Nlink Service */
        send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
        nl_srv_exit();
-       hdd_close_all_adapters(pHddCtx);
        /* Free up dynamically allocated members inside HDD Adapter */
        kfree(pHddCtx->cfg_ini);
        pHddCtx->cfg_ini= NULL;
@@ -2203,7 +2326,7 @@ err_vosclose:
 err_re_init:
    /* Allow the phone to go to sleep */
    hdd_allow_suspend();
-   return -1;
+   return -EPERM;
 
 success:
    /* Trigger replay of BTC events */

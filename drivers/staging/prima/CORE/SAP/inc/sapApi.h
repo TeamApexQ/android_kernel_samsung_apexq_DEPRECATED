@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -148,7 +148,10 @@ typedef enum {
     eSAP_DOT11_MODE_11g_ONLY = 0x0080,
     eSAP_DOT11_MODE_11n_ONLY = 0x0100,
     eSAP_DOT11_MODE_11b_ONLY = 0x0400,
-
+#ifdef WLAN_FEATURE_11AC
+    eSAP_DOT11_MODE_11ac     = 0x1000,
+    eSAP_DOT11_MODE_11ac_ONLY = 0x2000
+#endif
 } eSapPhyMode;
 
 typedef enum {
@@ -187,6 +190,8 @@ typedef enum {
     eSAP_INDICATE_MGMT_FRAME,
     eSAP_REMAIN_CHAN_READY,
     eSAP_SEND_ACTION_CNF,
+    eSAP_DISCONNECT_ALL_P2P_CLIENT,
+    eSAP_MAC_TRIG_STOP_BSS_EVENT,
 #endif
     eSAP_UNKNOWN_STA_JOIN, /* Event send when a STA in neither white list or black list tries to associate in softap mode */
     eSAP_MAX_ASSOC_EXCEEDED, /* Event send when a new STA is rejected association since softAP max assoc limit has reached */
@@ -551,6 +556,9 @@ typedef struct sap_SoftapStats_s {
    v_U32_t rxRate;
 } tSap_SoftapStats, *tpSap_SoftapStats;
 
+
+int sapSetPreferredChannel(struct net_device *dev, tANI_U8* ptr);
+void sapCleanupChannelList(void);
 
 /*==========================================================================
   FUNCTION    WLANSAP_Set_WpsIe

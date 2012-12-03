@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -163,6 +163,9 @@
 #if defined WLAN_FEATURE_P2P
 #define SIR_MAC_ACTION_PUBLIC_USAGE 4
 #endif
+#ifdef WLAN_FEATURE_11AC
+#define SIR_MAC_ACTION_VHT            21
+#endif
 
 // QoS management action codes
 
@@ -213,6 +216,11 @@
 #define SIR_MAC_RRM_NEIGHBOR_REQ               4
 #define SIR_MAC_RRM_NEIGHBOR_RPT               5
 
+#endif
+
+//VHT Action Field 
+#ifdef WLAN_FEATURE_11AC
+#define SIR_MAC_VHT_OPMODE_NOTIFICATION        2
 #endif
 
 // HT Action Field Codes
@@ -367,6 +375,12 @@
 #define SIR_MAC_HT_INFO_EID_MIN    0
 #define SIR_MAC_HT_INFO_EID_MAX    255
 
+#ifdef WLAN_FEATURE_11AC
+#define SIR_MAC_VHT_CAPABILITIES_EID   191
+#define SIR_MAC_VHT_OPERATION_EID      192
+#define SIR_MAC_VHT_EXT_BSS_LOAD_EID   193
+#define SIR_MAC_VHT_OPMODE_EID         199
+#endif
 #define SIR_MAC_MAX_SUPPORTED_MCS_SET    16
 
 /// Workaround IE to change beacon length when it is 4*n+1
@@ -467,7 +481,7 @@
 
 
 // Length of Channel Switch related message
-#define SIR_SME_CHANNEL_SWITCH_SIZE        (sizeof(tANI_U8) + 2 *sizeof(tANI_U16) + sizeof(tANI_U32) + sizeof(tAniCBSecondaryMode))
+#define SIR_SME_CHANNEL_SWITCH_SIZE        (sizeof(tANI_U8) + 2 *sizeof(tANI_U16) + sizeof(tANI_U32) + sizeof(ePhyChanBondState))
 #define SIR_CHANNEL_SWITCH_IE_SIZE         EID_LEN(SIR_MAC_CHNL_SWITCH_ANN_EID_MIN)
 
 //Measurement Request/Report messages
@@ -582,7 +596,7 @@
 
 // bitname must be one of the above, eg ESS, CF_POLLABLE, etc.
 #define SIR_MAC_CLEAR_CAPABILITY(u16value, bitname) \
-    (u16value) &= (~(SIR_MAC_SET_##bitname(0)))
+  ((u16value) &= (~(SIR_MAC_SET_##bitname(0))))
 
 /// Status Code (present in Management response frames) enum
 
@@ -1570,17 +1584,14 @@ typedef enum eSirMacHTMIMOPowerSaveState
 } tSirMacHTMIMOPowerSaveState;
 
 
-typedef enum eSirMacHTSecondaryChannelOffset
-{
-    eHT_SECONDARY_CHANNEL_OFFSET_NONE = 0,
-    eHT_SECONDARY_CHANNEL_OFFSET_UP = 1,
-    eHT_SECONDARY_CHANNEL_OFFSET_DOWN = 3
-} tSirMacHTSecondaryChannelOffset;
-
 typedef enum eSirMacHTChannelWidth
 {
     eHT_CHANNEL_WIDTH_20MHZ = 0,
-    eHT_CHANNEL_WIDTH_40MHZ = 1
+    eHT_CHANNEL_WIDTH_40MHZ = 1,
+#ifdef WLAN_FEATURE_11AC
+    eHT_CHANNEL_WIDTH_80MHZ = 2,
+#endif
+    eHT_MAX_CHANNEL_WIDTH
 } tSirMacHTChannelWidth;
 
 //Packet struct for HT capability

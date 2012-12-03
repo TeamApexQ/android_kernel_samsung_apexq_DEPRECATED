@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -42,8 +42,8 @@
 #include "vos_memory.h"
 
 
-static pnfTxCompleteHandler bapRsnFsmTxCmpHandler = NULL;
-static pnfRxFrameHandler bapRsnFsmRxFrameHandler = NULL;
+static pnfTxCompleteHandler bapRsnFsmTxCmpHandler;
+static pnfRxFrameHandler bapRsnFsmRxFrameHandler;
 
 extern int gReadToSetKey;
 
@@ -111,7 +111,7 @@ static VOS_STATUS bapRsnTxCompleteCallback( v_PVOID_t pvosGCtx, vos_pkt_t *pPack
     if (NULL == pvosGCtx) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "pvosGCtx is NULL in %s", __FUNCTION__);
+                     "pvosGCtx is NULL in %s", __func__);
 
         return VOS_STATUS_E_FAULT;
     }
@@ -120,7 +120,7 @@ static VOS_STATUS bapRsnTxCompleteCallback( v_PVOID_t pvosGCtx, vos_pkt_t *pPack
     if (NULL == btampContext) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "btampContext is NULL in %s", __FUNCTION__);
+                     "btampContext is NULL in %s", __func__);
 
         return VOS_STATUS_E_FAULT;
     }
@@ -129,7 +129,7 @@ static VOS_STATUS bapRsnTxCompleteCallback( v_PVOID_t pvosGCtx, vos_pkt_t *pPack
     if (NULL == fsm) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "fsm is NULL in %s", __FUNCTION__);
+                     "fsm is NULL in %s", __func__);
 
         return VOS_STATUS_E_FAULT;
     }

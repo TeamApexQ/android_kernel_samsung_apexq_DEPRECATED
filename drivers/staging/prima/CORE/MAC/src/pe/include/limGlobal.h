@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -459,6 +459,9 @@ typedef struct sLimMlmStaContext
     tANI_U8                 schClean:1;
     // 802.11n HT Capability in Station: Enabled 1 or DIsabled 0
     tANI_U8                 htCapability:1;
+#ifdef WLAN_FEATURE_11AC
+    tANI_U8                 vhtCapability:1;
+#endif
 } tLimMlmStaContext, *tpLimMlmStaContext;
 
 // Structure definition to hold deferred messages queue parameters
@@ -636,12 +639,29 @@ typedef struct sLimChannelSwitchInfo
 {
     tLimChannelSwitchState   state;
     tANI_U8                  primaryChannel;
-    tAniCBSecondaryMode      secondarySubBand;
+    ePhyChanBondState        secondarySubBand;
     tANI_U32                 switchCount;
     tANI_U32                 switchTimeoutValue;
     tANI_U8                  switchMode;
 } tLimChannelSwitchInfo, *tpLimChannelSwitchInfo;
 
+#ifdef WLAN_FEATURE_11AC
+typedef struct sLimOperatingModeInfo
+{
+    tANI_U8        present;
+    tANI_U8        chanWidth: 2;
+    tANI_U8         reserved: 2;
+    tANI_U8            rxNSS: 3;
+    tANI_U8        rxNSSType: 1;
+}tLimOperatingModeInfo, *tpLimOperatingModeInfo;
+
+typedef struct sLimWiderBWChannelSwitch
+{
+    tANI_U8      newChanWidth;
+    tANI_U8      newCenterChanFreq0;
+    tANI_U8      newCenterChanFreq1;
+}tLimWiderBWChannelSwitchInfo, *tpLimWiderBWChannelSwitchInfo;
+#endif
 // Enums used when stopping the Tx.
 typedef enum eLimQuietTxMode
 {

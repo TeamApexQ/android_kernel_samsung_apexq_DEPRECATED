@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -55,7 +55,7 @@ void limMeasurementTimerHandler(VOID*, tANI_U32);
 #endif
 
 /// Function to extract AP's HCF capability from IE fields
-void limExtractApCapability(tpAniSirGlobal, tANI_U8 *, tANI_U16, tANI_U8 *, tANI_U16 *, tANI_U8 *, tPowerdBm*);
+void limExtractApCapability(tpAniSirGlobal, tANI_U8 *, tANI_U16, tANI_U8 *, tANI_U16 *, tANI_U8 *, tPowerdBm*, tpPESession);
 
 #if (WNI_POLARIS_FW_PACKAGE == ADVANCED) && defined(ANI_PRODUCT_TYPE_AP)
 /// Function to extract current Learn channel
@@ -63,11 +63,11 @@ tANI_U8 limGetCurrentLearnChannel(tpAniSirGlobal);
 // Determine if a newly discovered BSS is TITAN-compatible
 void handleNonTitanBss( tpAniSirGlobal, tSirNeighborBssWdsInfo );
 #endif
-ePhyChanBondState limGetPhyCBState( tpAniSirGlobal );
 tStaRateMode limGetStaPeerType( tpAniSirGlobal, tpDphHashNode ,tpPESession);
-void setupCBState( tpAniSirGlobal, tAniCBSecondaryMode );
+#ifdef WLAN_FEATURE_11AC
+ePhyChanBondState  limGetHTCBState(ePhyChanBondState aniCBMode) ;
+#endif
 
-tANI_U8 limGetCurrentCBSecChannel( tpAniSirGlobal,tpPESession );
 
 #endif /* __LIM_PROP_EXTS_UTILS_H */
 

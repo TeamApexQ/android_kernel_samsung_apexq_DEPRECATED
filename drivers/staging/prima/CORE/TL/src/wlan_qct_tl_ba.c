@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -170,7 +170,7 @@ v_VOID_t WLANTL_ReorderingAgingTimerExpierCB
    vosDataBuff = NULL;
 
 
-   TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,"BA timeout with %d pending frames, curIdx %d", ReorderInfo->pendingFramesCount, ReorderInfo->ucCIndex));
+   TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_INFO,"BA timeout with %d pending frames, curIdx %d", ReorderInfo->pendingFramesCount, ReorderInfo->ucCIndex));
 
    if(ReorderInfo->pendingFramesCount == 0)
    {
@@ -334,7 +334,7 @@ void WLANTL_InitBAReorderBuffer
    if (NULL == pTLCb)
    {
       TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-                       "%s: Invalid TL Control Block", __FUNCTION__));
+                       "%s: Invalid TL Control Block", __func__));
       return;
    }
 
@@ -613,7 +613,7 @@ WLANTL_BaSessionDel
   if (( 0 == pTLCb->atlSTAClients[ucSTAId].ucExists ) &&
       ( 0 == pTLCb->atlSTAClients[ucSTAId].atlBAReorderInfo[ucTid].ucExists ))
   {
-    VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+    VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_WARN,
           "WLAN TL:Station was not yet registered on WLANTL_BaSessionDel");
     return VOS_STATUS_E_EXISTS;
   }
@@ -639,7 +639,7 @@ WLANTL_BaSessionDel
    ------------------------------------------------------------------------*/
   if ( 0 == pTLCb->atlSTAClients[ucSTAId].atlBAReorderInfo[ucTid].ucExists )
   {
-    VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+    VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_INFO_HIGH,
                "WLAN TL:BA session does not exists on WLANTL_BaSessionDel");
     return VOS_STATUS_E_EXISTS;
   }
@@ -658,7 +658,7 @@ WLANTL_BaSessionDel
   if(!VOS_IS_STATUS_SUCCESS(lockStatus))
   {
     TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-          "Unable to acquire reorder vos lock in %s\n", __FUNCTION__));
+          "Unable to acquire reorder vos lock in %s\n", __func__));
     return lockStatus;
   }
   pTLCb->atlSTAClients[ucSTAId].atlBAReorderInfo[ucTid].ucExists = 0;
@@ -832,7 +832,7 @@ WLANTL_AMSDUProcess
   VOS_STATUS      vStatus = VOS_STATUS_SUCCESS;
   v_U16_t         MPDUDataOffset;
   v_U16_t         packetLength; 
-  static v_U32_t  numAMSDUFrames = 0;
+  static v_U32_t  numAMSDUFrames;
   vos_pkt_t*      vosDataBuff;
   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
   /*------------------------------------------------------------------------

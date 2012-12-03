@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -70,6 +70,21 @@ VOS_STATUS btcOpen (tHalHandle hHal)
    pMac->btc.btcConfig.btcBtIntervalMode1 = BTC_BT_INTERVAL_MODE1_DEFAULT;
    pMac->btc.btcConfig.btcWlanIntervalMode1 = BTC_WLAN_INTERVAL_MODE1_DEFAULT;
    pMac->btc.btcConfig.btcActionOnPmFail = BTC_START_NEXT;
+
+   pMac->btc.btcConfig.btcStaticLenInqBt = BTC_STATIC_BT_LEN_INQ_DEF;
+   pMac->btc.btcConfig.btcStaticLenPageBt = BTC_STATIC_BT_LEN_PAGE_DEF;
+   pMac->btc.btcConfig.btcStaticLenConnBt = BTC_STATIC_BT_LEN_CONN_DEF;
+   pMac->btc.btcConfig.btcStaticLenLeBt = BTC_STATIC_BT_LEN_LE_DEF;
+   pMac->btc.btcConfig.btcStaticLenInqWlan = BTC_STATIC_WLAN_LEN_INQ_DEF;
+   pMac->btc.btcConfig.btcStaticLenPageWlan = BTC_STATIC_WLAN_LEN_PAGE_DEF;
+   pMac->btc.btcConfig.btcStaticLenConnWlan = BTC_STATIC_WLAN_LEN_CONN_DEF;
+   pMac->btc.btcConfig.btcStaticLenLeWlan = BTC_STATIC_WLAN_LEN_LE_DEF;
+   pMac->btc.btcConfig.btcDynMaxLenBt = BTC_DYNAMIC_BT_LEN_MAX_DEF;
+   pMac->btc.btcConfig.btcDynMaxLenWlan = BTC_DYNAMIC_WLAN_LEN_MAX_DEF;
+   pMac->btc.btcConfig.btcMaxScoBlockPerc = BTC_SCO_BLOCK_PERC_DEF;
+   pMac->btc.btcConfig.btcDhcpProtOnA2dp = BTC_DHCP_ON_A2DP_DEF;
+   pMac->btc.btcConfig.btcDhcpProtOnSco = BTC_DHCP_ON_SCO_DEF;
+
    pMac->btc.btcReady = VOS_FALSE;
    pMac->btc.btcEventState = 0;
    pMac->btc.btcHBActive = VOS_TRUE;
@@ -114,7 +129,7 @@ VOS_STATUS btcClose (tHalHandle hHal)
    {
        VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_FATAL,
          "%s: %d: cannot deregister with pmcDeregisterDeviceStateUpdateInd()",
-                __FUNCTION__, __LINE__);
+                __func__, __LINE__);
    }
 
    return VOS_STATUS_SUCCESS;
@@ -165,7 +180,7 @@ static VOS_STATUS btcSendBTEvent(tpAniSirGlobal pMac, tpSmeBtEvent pBtEvent)
          {
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
                "Invalid link type %d for Sync Connection. BT event will be dropped ",
-               __FUNCTION__, pBtEvent->uEventParam.btSyncConnection.linkType);
+               __func__, pBtEvent->uEventParam.btSyncConnection.linkType);
             return VOS_STATUS_E_FAILURE;
          }
          break;
@@ -176,7 +191,7 @@ static VOS_STATUS btcSendBTEvent(tpAniSirGlobal pMac, tpSmeBtEvent pBtEvent)
          {
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
                "Invalid connection handle %d or link type %d for Sync Connection. BT event will be dropped ",
-               __FUNCTION__,
+               __func__,
                pBtEvent->uEventParam.btSyncConnection.connectionHandle,
                pBtEvent->uEventParam.btSyncConnection.linkType);
             return VOS_STATUS_E_FAILURE;
@@ -187,7 +202,7 @@ static VOS_STATUS btcSendBTEvent(tpAniSirGlobal pMac, tpSmeBtEvent pBtEvent)
          {
             VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
                "Invalid mode %d for ACL Connection. BT event will be dropped ",
-               __FUNCTION__,
+               __func__,
                pBtEvent->uEventParam.btAclModeChange.mode);
             return VOS_STATUS_E_FAILURE;
          }
@@ -202,7 +217,7 @@ static VOS_STATUS btcSendBTEvent(tpAniSirGlobal pMac, tpSmeBtEvent pBtEvent)
    if (NULL == ptrSmeBtEvent)
    {
       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
-         "Not able to allocate memory for BT event", __FUNCTION__);
+         "Not able to allocate memory for BT event", __func__);
       return VOS_STATUS_E_FAILURE;
    }
    btcLogEvent(pMac, pBtEvent);
@@ -216,7 +231,7 @@ static VOS_STATUS btcSendBTEvent(tpAniSirGlobal pMac, tpSmeBtEvent pBtEvent)
    if(VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA, &msg))
    {
       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
-         "Not able to post WDA_SIGNAL_BT_EVENT message to WDA", __FUNCTION__);
+         "Not able to post WDA_SIGNAL_BT_EVENT message to WDA", __func__);
       vos_mem_free( ptrSmeBtEvent );
       return VOS_STATUS_E_FAILURE;
    }
@@ -251,21 +266,21 @@ VOS_STATUS btcSignalBTEvent (tHalHandle hHal, tpSmeBtEvent pBtEvent)
    if( NULL == pBtEvent )
    {
       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
-         "Null pointer for SME BT Event", __FUNCTION__);
+         "Null pointer for SME BT Event", __func__);
       return VOS_STATUS_E_FAILURE;
    }
    if(( BTC_WLAN_ONLY == pMac->btc.btcConfig.btcExecutionMode ) ||
       ( BTC_PTA_ONLY == pMac->btc.btcConfig.btcExecutionMode ))
    {
       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
-         "BTC execution mode not set to BTC_SMART_COEXISTENCE. BT event will be dropped", __FUNCTION__);
+         "BTC execution mode not set to BTC_SMART_COEXISTENCE. BT event will be dropped", __func__);
       return VOS_STATUS_E_FAILURE;
    }
    if( pBtEvent->btEventType < 0 || pBtEvent->btEventType >= BT_EVENT_TYPE_MAX )
    {
       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
          "Invalid BT event %d being passed. BT event will be dropped",
-          __FUNCTION__, pBtEvent->btEventType);
+          __func__, pBtEvent->btEventType);
       return VOS_STATUS_E_FAILURE;
    }
    //Check PMC state to make sure whether we need to defer
@@ -1607,7 +1622,7 @@ static void btcPowerStateCB( v_PVOID_t pContext, tPmcState pmcState )
 static void btcLogEvent (tHalHandle hHal, tpSmeBtEvent pBtEvent)
 {
    VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR, "%s: "
-               "Bluetooth Event %d received", __FUNCTION__, pBtEvent->btEventType);
+               "Bluetooth Event %d received", __func__, pBtEvent->btEventType);
    switch(pBtEvent->btEventType)
    {
       case BT_EVENT_CREATE_SYNC_CONNECTION:
@@ -1850,14 +1865,14 @@ eHalStatus btcHandleCoexInd(tHalHandle hHal, void* pMsg)
 
    if (NULL == pMsg)
    {
-      smsLog(pMac, LOGE, "in %s msg ptr is NULL\n", __FUNCTION__);
+      smsLog(pMac, LOGE, "in %s msg ptr is NULL\n", __func__);
       status = eHAL_STATUS_FAILURE;
    }
    else
    {
       // DEBUG
       smsLog(pMac, LOG1, "Coex indication in %s(), type %d",
-             __FUNCTION__, pSmeCoexInd->coexIndType);
+             __func__, pSmeCoexInd->coexIndType);
 
      // suspend heartbeat monitoring
      if (pSmeCoexInd->coexIndType == SIR_COEX_IND_TYPE_DISABLE_HB_MONITOR)
@@ -1880,7 +1895,7 @@ eHalStatus btcHandleCoexInd(tHalHandle hHal, void* pMsg)
      // unknown indication type
      else
      {
-        smsLog(pMac, LOGE, "unknown Coex indication type in %s()", __FUNCTION__);
+        smsLog(pMac, LOGE, "unknown Coex indication type in %s()", __func__);
      }
    }
 

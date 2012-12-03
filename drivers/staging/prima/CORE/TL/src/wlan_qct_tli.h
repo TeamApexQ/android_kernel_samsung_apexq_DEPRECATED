@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -114,7 +114,7 @@ when        who    what, where, why
 #define WLANTL_LLC_OUI_SIZE                   3
 
 /*Offset of the protocol type field inside the LLC/SNAP header*/
-#define WLANTL_LLC_PROTO_TYPE_OFFSET  WLANTL_LLC_OUI_OFFSET +  WLANTL_LLC_OUI_SIZE
+#define WLANTL_LLC_PROTO_TYPE_OFFSET  (WLANTL_LLC_OUI_OFFSET +  WLANTL_LLC_OUI_SIZE)
 
 /*Size of the protocol type field inside the LLC/SNAP header*/
 #define WLANTL_LLC_PROTO_TYPE_SIZE            2
@@ -213,12 +213,12 @@ when        who    what, where, why
 
 /*get TL control block from vos global context */
 #define VOS_GET_TL_CB(_pvosGCtx) \
-        (WLANTL_CbType*)vos_get_context( VOS_MODULE_ID_TL, _pvosGCtx)
+  ((WLANTL_CbType*)vos_get_context( VOS_MODULE_ID_TL, _pvosGCtx))
 
 /* Check whether Rx frame is LS or EAPOL packet (other than data) */
 #define WLANTL_BAP_IS_NON_DATA_PKT_TYPE(usType) \
-        (WLANTL_BT_AMP_TYPE_AR == usType) || (WLANTL_BT_AMP_TYPE_SEC == usType) || \
-        (WLANTL_BT_AMP_TYPE_LS_REQ == usType) || (WLANTL_BT_AMP_TYPE_LS_REP == usType)
+  ((WLANTL_BT_AMP_TYPE_AR == usType) || (WLANTL_BT_AMP_TYPE_SEC == usType) || \
+   (WLANTL_BT_AMP_TYPE_LS_REQ == usType) || (WLANTL_BT_AMP_TYPE_LS_REP == usType))
 
 /*get RSSI0 from a RX BD*/
 /* 7 bits in phystats represent -100dBm to +27dBm */
@@ -230,8 +230,8 @@ when        who    what, where, why
 
 /* Check whether Rx frame is LS or EAPOL packet (other than data) */
 #define WLANTL_BAP_IS_NON_DATA_PKT_TYPE(usType) \
-        (WLANTL_BT_AMP_TYPE_AR == usType) || (WLANTL_BT_AMP_TYPE_SEC == usType) || \
-        (WLANTL_BT_AMP_TYPE_LS_REQ == usType) || (WLANTL_BT_AMP_TYPE_LS_REP == usType)
+  ((WLANTL_BT_AMP_TYPE_AR == usType) || (WLANTL_BT_AMP_TYPE_SEC == usType) || \
+   (WLANTL_BT_AMP_TYPE_LS_REQ == usType) || (WLANTL_BT_AMP_TYPE_LS_REP == usType))
 
 /*---------------------------------------------------------------------------
   TL signals for TX thread
@@ -523,6 +523,9 @@ typedef struct
   /*Packet pending flag - set if tx is pending for the station*/
   v_U8_t                        ucPktPending;
   
+  /*EAPOL Packet pending flag - set if EAPOL packet is pending for the station*/
+  v_U8_t                        ucEapolPktPending;
+
   /*used on tx packet to signal when there is no more data to tx for the 
    moment=> packets can be passed to BAL */
   v_U8_t                    ucNoMoreData;

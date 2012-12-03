@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -91,8 +91,8 @@
 
 #elif defined _MSC_VER
 
-   #define WPT_PACK_START  __pragma (pack(push,1))
-   #define WPT_PACK_END  __pragma (pack(pop))
+#define WPT_PACK_START  __pragma(pack(push,1))
+#define WPT_PACK_END  __pragma(pack(pop))
 
    #define WPT_PACK_PRE 
    #define WPT_PACK_POST

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -50,6 +50,7 @@ static WDTS_TransportDriverTrype gTransportDriver = {
   WLANDXE_TxFrame,
   WLANDXE_CompleteTX,
   WLANDXE_SetPowerState,
+  WLANDXE_ChannelDebug,
   WLANDXE_Stop,
   WLANDXE_Close,
   WLANDXE_GetFreeTxDataResNumber
@@ -89,12 +90,19 @@ wpt_status WDTS_TxPacketComplete(void *pContext, wpt_packet *pFrame, wpt_status 
   switch(pTxMetadata->frmType) 
   {
     case WDI_MAC_DATA_FRAME:
+    /* note that EAPOL frame hasn't incremented ReserveCount. see
+       WDI_DS_TxPacket() in wlan_qct_wdi_ds.c
+    */
+    if(!pTxMetadata->isEapol)
+    {
       /* SWAP BD header to get STA index for completed frame */
       WDI_SwapTxBd(pvBDHeader);
       staIndex = (wpt_uint8)WDI_TX_BD_GET_STA_ID(pvBDHeader);
       WDI_DS_MemPoolFree(&(pClientData->dataMemPool), pvBDHeader, physBDHeader);
       WDI_DS_MemPoolDecreaseReserveCount(&(pClientData->dataMemPool), staIndex);
       break;
+    }
+    // intentional fall-through to handle eapol packet as mgmt
     case WDI_MAC_MGMT_FRAME:
       WDI_DS_MemPoolFree(&(pClientData->mgmtMemPool), pvBDHeader, physBDHeader);
       break;
@@ -419,7 +427,7 @@ wpt_status WDTS_openTransport( void *pContext)
   pDTDriverContext = gTransportDriver.open(); 
   if( NULL == pDTDriverContext )
   {
-     DTI_TRACE( DTI_TRACE_LEVEL_ERROR, " %s fail from transport open", __FUNCTION__);
+     DTI_TRACE( DTI_TRACE_LEVEL_ERROR, " %s fail from transport open", __func__);
      return eWLAN_PAL_STATUS_E_FAILURE;
   }
   WDT_AssignTransportDriverContext(pContext, pDTDriverContext);
@@ -486,8 +494,12 @@ wpt_status WDTS_TxPacket(void *pContext, wpt_packet *pFrame)
 
   // assign MDPU to correct channel??
   channel =  (pTxMetadata->frmType & WDI_MAC_DATA_FRAME)? 
-      WDTS_CHANNEL_TX_LOW_PRI : WDTS_CHANNEL_TX_HIGH_PRI;
-  
+    /* EAPOL frame uses TX_HIGH_PRIORITY DXE channel
+       To make sure EAPOL (for second session) is pushed even if TX_LO channel
+       already reached to low resource condition
+       This can happen especially in MCC, high data traffic TX in first session
+     */
+      ((pTxMetadata->isEapol) ? WDTS_CHANNEL_TX_HIGH_PRI : WDTS_CHANNEL_TX_LOW_PRI) : WDTS_CHANNEL_TX_HIGH_PRI;
   // Send packet to  Transport Driver. 
   status =  gTransportDriver.xmit(pDTDriverContext, pFrame, channel);
   return status;
@@ -558,6 +570,24 @@ wpt_status WDTS_SetPowerState(void *pContext, WDTS_PowerStateType  powerState,
    }
 
    return status;
+}
+
+/* DTS Transport Channel Debug
+ * Display DXE Channel debugging information
+ * User may request to display DXE channel snapshot
+ * Or if host driver detects any abnormal stcuk may display
+ * Parameters:
+ *  displaySnapshot : Dispaly DXE snapshot option
+ *  enableStallDetect : Enable stall detect feature
+                        This feature will take effect to data performance
+                        Not integrate till fully verification
+ * Return Value: NONE
+ *
+ */
+void WDTS_ChannelDebug(wpt_boolean dispalySnapshot, wpt_boolean toggleStallDetect)
+{
+   gTransportDriver.channelDebug(dispalySnapshot, toggleStallDetect);
+   return;
 }
 
 /* DTS Stop function. 

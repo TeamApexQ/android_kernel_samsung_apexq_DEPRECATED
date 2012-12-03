@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -149,7 +149,7 @@ WLANBAP_GetCurrentChannel
   if (( NULL == pBtampCtx ) || (NULL == channel) || (NULL == activeFlag))
   {
     VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                 "Invalid BAP pointer in %s", __FUNCTION__);
+                 "Invalid BAP pointer in %s", __func__);
     return VOS_STATUS_E_FAULT;
   }
 
@@ -158,7 +158,7 @@ WLANBAP_GetCurrentChannel
   if(NULL == halHandle)
   {
      VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                  "halHandle is NULL in %s", __FUNCTION__);
+                  "halHandle is NULL in %s", __func__);
      return VOS_STATUS_E_FAULT;
   }
 
@@ -166,7 +166,7 @@ WLANBAP_GetCurrentChannel
           != eHAL_STATUS_SUCCESS ) 
   {
     VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                 "Get CFG failed in %s", __FUNCTION__);
+                 "Get CFG failed in %s", __func__);
     return VOS_STATUS_E_FAULT;
   }
 

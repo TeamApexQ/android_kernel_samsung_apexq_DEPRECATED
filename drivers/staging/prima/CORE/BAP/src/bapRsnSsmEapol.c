@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -42,10 +42,6 @@
 
 //#include "aniSsmUtils.h"
 
-#define CHECK_RETVAL(retVal) \
-              assert(retVal == ANI_OK); \
-              if (retVal != ANI_OK) return ANI_E_FAILED;
-
 
 //TODO: Put these in an array after EAPOL_TYPE is made an enum
 #define ANI_EAPOL_TYPE_PACKET_STR    "EAP"
@@ -68,7 +64,7 @@
 
 #define EAPOL_BODY_LEN_SIZE 2
 
-#define ANI_SSM_LEGACY_RC4_KEY_SIGN_OFFSET EAPOL_BODY_POS + 28
+#define ANI_SSM_LEGACY_RC4_KEY_SIGN_OFFSET (EAPOL_BODY_POS + 28)
 
 /**
  * Bitmasks for the RSN Key Information field
@@ -87,7 +83,7 @@
 #define ANI_SSM_RSN_KEY_DESC_VERS_OFFSET  0
 #define ANI_SSM_RSN_KEY_INDEX_OFFSET      4
 
-#define ANI_SSM_RSN_KEY_MIC_OFFSET EAPOL_BODY_POS + 77
+#define ANI_SSM_RSN_KEY_MIC_OFFSET (EAPOL_BODY_POS + 77)
 
 /**
  * Other hard coded values for convenience:

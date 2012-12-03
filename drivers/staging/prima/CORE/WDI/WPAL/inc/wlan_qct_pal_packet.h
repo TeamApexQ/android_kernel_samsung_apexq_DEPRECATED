@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -67,7 +67,7 @@
 //The size of AMSDU frame per spec can be a max of 3839 bytes 
 // in BD/PDUs that means 30 (one BD = 128 bytes) 
 // we must add the size of the 802.11 header to that 
-#define VPKT_SIZE_BUFFER  (30 * 128) + 32
+#define VPKT_SIZE_BUFFER  ((30 * 128) + 32)
 
 typedef enum
 {
@@ -223,7 +223,7 @@ wpt_status wpalPacketRawTrimTail(wpt_packet *pPkt, wpt_uint32 size);
         NULL - fail.
         Otherwise the address of the starting of the buffer
 ---------------------------------------------------------------------------*/
-extern WPT_INLINE wpt_uint8 *wpalPacketGetRawBuf(wpt_packet *pPkt);
+extern wpt_uint8 *wpalPacketGetRawBuf(wpt_packet *pPkt);
 
 
 /*---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ extern WPT_INLINE wpt_uint8 *wpalPacketGetRawBuf(wpt_packet *pPkt);
         NULL - fail.
         Otherwise the address of the starting of the buffer
 ---------------------------------------------------------------------------*/
-extern WPT_INLINE wpt_status wpalPacketSetRxLength(wpt_packet *pPkt, wpt_uint32 len);
+extern wpt_status wpalPacketSetRxLength(wpt_packet *pPkt, wpt_uint32 len);
 
 
 /*---------------------------------------------------------------------------

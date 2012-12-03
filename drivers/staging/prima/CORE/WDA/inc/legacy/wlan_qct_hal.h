@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -204,7 +204,7 @@ typedef struct sUapsdInfo {
 #define WLANHAL_RX_BD_GET_DPU_SIG( _pvBDHeader )   (((tpHalRxBd)_pvBDHeader)->dpuSignature)
 
 #ifdef WLAN_SOFTAP_FEATURE
-#define WLANHAL_FC_RX_BD_REPORT_CONTENT_SIZE        2*HAL_NUM_STA*sizeof(tANI_U8)   // size of fcSTATxQLen[HAL_NUM_STA]+fcSTACurTxRate[HAL_NUM_STA]
+#define WLANHAL_FC_RX_BD_REPORT_CONTENT_SIZE        (2 * HAL_NUM_STA * sizeof(tANI_U8))   // size of fcSTATxQLen[HAL_NUM_STA]+fcSTACurTxRate[HAL_NUM_STA]
 #define WLANHAL_FC_TX_BD_HEADER_SIZE                sizeof(tHalFcTxBd)
 #define WLANHAL_RX_BD_GET_FC( _pvBDHeader )                      (((tpHalFcRxBd)_pvBDHeader)->fc)
 #define WLANHAL_RX_BD_GET_RX_TIME_STAMP( _pvBDHeader )           (((tpHalFcRxBd)_pvBDHeader)->mclkRxTimestamp)

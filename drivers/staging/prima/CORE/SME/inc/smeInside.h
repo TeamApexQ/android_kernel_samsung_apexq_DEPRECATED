@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -186,11 +186,12 @@ eHalStatus csrProcessDelStaSessionRsp( tpAniSirGlobal pMac, tANI_U8 *pMsg);
     \brief  Set the host offload feature.
     \param  hHal - The handle returned by macOpen.
     \param  pRequest - Pointer to the offload request.
+    \param  sessionId .  Session index of the session
     \return eHalStatus
             eHAL_STATUS_FAILURE  Cannot set the offload.
             eHAL_STATUS_SUCCESS  Request accepted. 
   ---------------------------------------------------------------------------*/
-eHalStatus pmcSetNSOffload (tHalHandle hHal, tpSirHostOffloadReq pRequest);
+eHalStatus pmcSetNSOffload (tHalHandle hHal, tpSirHostOffloadReq pRequest, tANI_U8 sessionId);
 #endif //WLAN_NS_OFFLOAD
 
 #ifdef FEATURE_WLAN_SCAN_PNO

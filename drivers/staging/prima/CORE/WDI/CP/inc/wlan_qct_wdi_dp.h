@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -232,7 +232,7 @@ when        who    what, where, why
 
 #define WDI_RX_BD_GET_SUBTYPE( _pvBDHeader )        ((((WDI_RxBdType*)_pvBDHeader)->frameTypeSubtype) & WDI_FRAME_SUBTYPE_MASK)
 
-#define WDI_RX_BD_GET_TYPE( _pvBDHeader )      ((((WDI_RxBdType*)_pvBDHeader)->frameTypeSubtype) & WDI_FRAME_TYPE_MASK) >> WDI_FRAME_TYPE_OFFSET;
+#define WDI_RX_BD_GET_TYPE( _pvBDHeader )     (((((WDI_RxBdType*)_pvBDHeader)->frameTypeSubtype) & WDI_FRAME_TYPE_MASK) >> WDI_FRAME_TYPE_OFFSET)
 
 #define WDI_RX_BD_GET_RTSF( _pvBDHeader )         (((WDI_RxBdType*)_pvBDHeader)->rtsf)
 
@@ -244,7 +244,7 @@ when        who    what, where, why
 
 #define WDI_RX_BD_GET_NE( _pvBDHeader )         (((WDI_RxBdType*)_pvBDHeader)->dpuNE)
 
-#define WDI_RX_BD_GET_LLCR( _pvBDHeader )         (((WDI_RxBdType*)_pvBDHeader)->llc)
+#define WDI_RX_BD_GET_LLCR( _pvBDHeader )         (((WDI_RxBdType*)_pvBDHeader)->llcr)
 
 #define WDI_RX_BD_GET_TIMESTAMP( _pvBDHeader )         (((WDI_RxBdType*)_pvBDHeader)->mclkRxTimestamp)
 

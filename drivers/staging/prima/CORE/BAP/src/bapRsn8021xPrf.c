@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -52,9 +52,9 @@
 #define AAG_PTK_PRF_LM_POS 0
 #define AAG_PTK_PRF_HM_POS 6
 #define AAG_PTK_PRF_LN_POS 12
-#define AAG_PTK_PRF_HN_POS AAG_PTK_PRF_LN_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE
+#define AAG_PTK_PRF_HN_POS (AAG_PTK_PRF_LN_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE)
 
-#define AAG_PTK_PRF_TEXT_LEN AAG_PTK_PRF_HN_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE
+#define AAG_PTK_PRF_TEXT_LEN (AAG_PTK_PRF_HN_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE)
 
 #define AAG_GTK_PRF_CONST "Group key expansion"
 #define AAG_GTK_PRF_CONST_LEN 19
@@ -62,7 +62,7 @@
 #define AAG_GTK_PRF_MAC_POS 0
 #define AAG_GTK_PRF_NONCE_POS 6
 
-#define AAG_GTK_PRF_TEXT_LEN AAG_GTK_PRF_NONCE_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE
+#define AAG_GTK_PRF_TEXT_LEN (AAG_GTK_PRF_NONCE_POS + ANI_EAPOL_KEY_RSN_NONCE_SIZE)
 
 /**
  * aagGetKeyMaterialLen
@@ -223,7 +223,7 @@ aagPrf(v_U32_t cryptHandle,
        v_U8_t *b, v_U8_t bLen,
        v_U32_t prfLen)
 {
-    static v_U8_t y = 0;
+    static v_U8_t y;
 
     v_U8_t *hmacText = NULL;
     v_U8_t *resultOffset = result;

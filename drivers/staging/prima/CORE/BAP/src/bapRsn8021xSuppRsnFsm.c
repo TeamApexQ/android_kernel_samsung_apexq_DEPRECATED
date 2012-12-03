@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -55,7 +55,7 @@
 
 static tSuppRsnFsmConsts suppConsts = { 2000, 3 };    //timeout, retry limit
 
-int gReadToSetKey = 0;
+int gReadToSetKey;
 
 /**************************************
  * Static functions in this module
@@ -632,7 +632,7 @@ gotoStateGroupKeySet(tSuppRsnFsm *fsm,
         {
             retVal = ANI_ERROR;
             VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR, "Supp could not send eapol. Disconnect\n" );
-            break;;    
+            break;
         }
 
         //FIX_RSN there is no need to set GTK retVal = setGtk(fsm->suppCtx, rxDesc->keyRecvSeqCounter);
@@ -1021,7 +1021,7 @@ static int suppRsnRxFrameHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket )
     if ((pvosGCtx == NULL) || (NULL == pPacket))
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "param is NULL in %s", __FUNCTION__);
+                     "param is NULL in %s", __func__);
 
         return retVal;
     }
@@ -1029,7 +1029,7 @@ static int suppRsnRxFrameHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket )
     if (NULL == ctx) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "ctx is NULL in %s", __FUNCTION__);
+                     "ctx is NULL in %s", __func__);
 
         return retVal;
     }
@@ -1038,7 +1038,7 @@ static int suppRsnRxFrameHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket )
     if (NULL == fsm) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "fsm is NULL in %s", __FUNCTION__);
+                     "fsm is NULL in %s", __func__);
 
         return retVal;
     }
@@ -1076,7 +1076,7 @@ static int suppRsnTxCompleteHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket, VOS
     if (pvosGCtx == NULL)
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "param is NULL in %s", __FUNCTION__);
+                     "param is NULL in %s", __func__);
 
         return ANI_ERROR;
     }
@@ -1084,7 +1084,7 @@ static int suppRsnTxCompleteHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket, VOS
     if (NULL == ctx) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "ctx is NULL in %s", __FUNCTION__);
+                     "ctx is NULL in %s", __func__);
 
         return ANI_ERROR;
     }
@@ -1093,7 +1093,7 @@ static int suppRsnTxCompleteHandler( v_PVOID_t pvosGCtx, vos_pkt_t *pPacket, VOS
     if (NULL == fsm) 
     {
         VOS_TRACE( VOS_MODULE_ID_BAP, VOS_TRACE_LEVEL_ERROR,
-                     "fsm is NULL in %s", __FUNCTION__);
+                     "fsm is NULL in %s", __func__);
 
         return ANI_ERROR;
     }

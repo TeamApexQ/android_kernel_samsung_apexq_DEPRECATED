@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -204,7 +204,7 @@ typedef struct rateStr2rateIndex_s
 
 #define FTM_VOS_EVENT_WAIT_TIME 10000
 
-#define SIZE_OF_TABLE(a) sizeof(a)/sizeof(a[0])                      
+#define SIZE_OF_TABLE(a) (sizeof(a) / sizeof(a[0]))
 
 int wlan_hdd_ftm_open(hdd_context_t *pHddCtx);
 void wlan_hdd_process_ftm_cmd (hdd_context_t *pHddCtx,tAniNlHdr *wnl);

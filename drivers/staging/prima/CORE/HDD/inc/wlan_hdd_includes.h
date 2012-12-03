@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -60,7 +60,6 @@
 #include "wlan_hdd_mib.h"
 #include "wlan_hdd_wext.h"
 #include "wlan_hdd_main.h"
-#include "wlan_hdd_version.h"
 #include "wlan_hdd_tx_rx.h"
 
 #ifdef FEATURE_OEM_DATA_SUPPORT

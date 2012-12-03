@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -302,6 +302,11 @@ typedef struct
     tANI_U8     p2pCapableSta;
 #endif
 
+#ifdef WLAN_FEATURE_11AC
+    tANI_U8    vhtCapable;
+    tANI_U8    vhtTxChannelWidthSet;
+#endif
+
 } tAddStaParams, *tpAddStaParams;
 
 
@@ -505,7 +510,10 @@ typedef struct
 
     //Spectrum Management Capability, 1 - Enabled, 0 - Disabled.
     tANI_U8 bSpectrumMgtEnabled;
-
+#ifdef WLAN_FEATURE_11AC
+    tANI_U8 vhtCapable;
+    tANI_U8    vhtTxChannelWidthSet;
+#endif
 } tAddBssParams, * tpAddBssParams;
 
 typedef struct
@@ -888,7 +896,13 @@ typedef struct
     tANI_U16 paramChangeBitmap;
 }tUpdateBeaconParams, *tpUpdateBeaconParams;
 
-
+#ifdef WLAN_FEATURE_11AC
+typedef struct 
+{
+   tANI_U16   opMode;
+   tANI_U16  staId;
+}tUpdateVHTOpMode, *tpUpdateVHTOpMode;
+#endif
 
 //HAL MSG: SIR_HAL_UPDATE_CF_IND
 typedef struct
@@ -941,7 +955,7 @@ typedef struct
 #ifndef WLAN_FEATURE_VOWIFI    
     tANI_U8 localPowerConstraint;
 #endif /* WLAN_FEATURE_VOWIFI  */
-    tSirMacHTSecondaryChannelOffset secondaryChannelOffset;
+    ePhyChanBondState secondaryChannelOffset;
     tANI_U8 peSessionId;
 #if defined WLAN_FEATURE_VOWIFI
     tPowerdBm txMgmtPower; //HAL fills in the tx power used for mgmt frames in this field.
@@ -1153,6 +1167,7 @@ typedef struct sExitBmpsParams
 {
     tANI_U8     sendDataNull;
     eHalStatus  status;
+    tANI_U8     bssIdx;
 } tExitBmpsParams, *tpExitBmpsParams;
 
 //
@@ -1170,7 +1185,18 @@ typedef struct sUapsdParams
     tANI_U8     viTriggerEnabled:1;
     tANI_U8     voTriggerEnabled:1;
     eHalStatus  status;
+    tANI_U8     bssIdx;
 }tUapsdParams, *tpUapsdParams;
+
+//
+// Mesg header is used from tSirMsgQ
+// Mesg Type = SIR_HAL_EXIT_UAPSD_REQ
+//
+typedef struct sExitUapsdParams
+{
+    eHalStatus  status;
+    tANI_U8     bssIdx;
+}tExitUapsdParams, *tpExitUapsdParams;
 
 //
 // Mesg header is used from tSirMsgQ
@@ -1267,7 +1293,13 @@ typedef struct sEnterBmpsParams
     tANI_U8 respReqd;
 }tEnterBmpsParams, *tpEnterBmpsParams;
 
-
+//BMPS response
+typedef struct sEnterBmpsRspParams
+{
+    /* success or failure */
+    tANI_U32   status;
+    tANI_U8    bssIdx;
+}tEnterBmpsRspParams, *tpEnterBmpsRspParams;
 //
 // Mesg header is used from tSirMsgQ
 // Mesg Type = SIR_HAL_SET_MAX_TX_POWER_REQ
@@ -1326,6 +1358,8 @@ typedef __ani_attr_pre_packed struct sBeaconFilterMsg
     tANI_U16    capabilityMask;
     tANI_U16    beaconInterval;
     tANI_U16    ieNum;
+    tANI_U8     bssIdx;
+    tANI_U8     reserved;
 } __ani_attr_packed tBeaconFilterMsg, *tpBeaconFilterMsg;
 
 typedef __ani_attr_pre_packed struct sEidByteInfo

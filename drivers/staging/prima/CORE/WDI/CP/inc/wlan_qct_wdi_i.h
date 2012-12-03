@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -411,6 +411,11 @@ typedef enum
   /* Send a capability exchange message to HAL */
   WDI_FEATURE_CAPS_EXCHANGE_REQ                 = 79,
 
+#ifdef WLAN_FEATURE_11AC
+  /* Send a capability exchange message to HAL */
+  WDI_UPDATE_VHT_OP_MODE_REQ                    = 80,
+#endif
+
   WDI_MAX_REQ,
 
   /*Send a suspend Indication down to HAL*/
@@ -654,13 +659,17 @@ typedef enum
 
   WDI_TSM_STATS_RESP                            = 74,
   /* GTK Rekey Offload */
-  WDI_GTK_OFFLOAD_RESP                    = 75, 
-  WDI_GTK_OFFLOAD_GETINFO_RESP         = 76, 
+  WDI_GTK_OFFLOAD_RESP                          = 75, 
+  WDI_GTK_OFFLOAD_GETINFO_RESP                  = 76, 
 
   WDI_SET_TM_LEVEL_RESP                         = 77,
 
   /* FW sends its capability bitmap as a response */
   WDI_FEATURE_CAPS_EXCHANGE_RESP                = 78,
+
+#ifdef WLAN_FEATURE_11AC
+  WDI_UPDATE_VHT_OP_MODE_RESP                   = 79,
+#endif
 
   /*-------------------------------------------------------------------------
     Indications
@@ -1026,6 +1035,13 @@ typedef struct
 
   /*version of the PNO implementation in RIVA*/
   wpt_uint8                   wdiPNOVersion;
+
+  /*SSR timer*/
+  wpt_timer                   ssrTimer;
+
+  /*Version of the WLAN HAL API received on start resp*/
+  WDI_WlanVersionType wlanVersion;
+
 }WDI_ControlBlockType; 
 
 
@@ -4924,6 +4940,22 @@ WDI_ProcessFeatureCapsExchangeRsp
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
+
+#ifdef WLAN_FEATURE_11AC
+WDI_Status
+WDI_ProcessUpdateVHTOpModeReq
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+WDI_Status
+WDI_ProcessUpdateVHTOpModeRsp
+( 
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+#endif
 
 #endif /*WLAN_QCT_WDI_I_H*/
 
