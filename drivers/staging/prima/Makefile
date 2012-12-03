@@ -1,4 +1,4 @@
-MODNAME := wlan
+MODNAME := wlan-caf
 
 #Do we panic on bug?  default is to warn
 PANIC_ON_BUG := 0
