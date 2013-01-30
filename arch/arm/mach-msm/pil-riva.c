@@ -160,6 +160,8 @@ static int pil_riva_reset(struct pil_desc *pil)
 	unsigned long start_addr = drv->start_addr;
 	int ret;
 
+	printk(KERN_ERR "pil_riva_reset enter\n");
+
 	ret = clk_prepare_enable(drv->xo);
 	if (ret)
 		return ret;
@@ -260,6 +262,7 @@ static int pil_riva_reset(struct pil_desc *pil)
 	writel_relaxed(reg, base + RIVA_PMU_OVRD_VAL);
 	clk_disable_unprepare(drv->xo);
 
+	printk(KERN_INFO "pil_riva_reset exit\n");
 	return 0;
 }
 
@@ -269,7 +272,9 @@ static int pil_riva_shutdown(struct pil_desc *pil)
 	u32 reg;
 	int ret;
 
+	printk(KERN_INFO "pil_riva_shutdown enter\n");
 	ret = clk_prepare_enable(drv->xo);
+	printk(KERN_INFO "pil_riva_shutdown (clk_prepare_enable) ret = %d\n", ret);
 	if (ret)
 		return ret;
 	/* Put cCPU and cCPU clock into reset */
@@ -280,19 +285,24 @@ static int pil_riva_shutdown(struct pil_desc *pil)
 	reg |= RIVA_PMU_OVRD_EN_CCPU_RESET | RIVA_PMU_OVRD_EN_CCPU_CLK;
 	writel_relaxed(reg, drv->base + RIVA_PMU_OVRD_EN);
 	mb();
+	printk(KERN_INFO "pil_riva_shutdown (Put cCPU and cCPU clock into reset) finish\n");
 
 	/* Assert reset to Riva */
 	writel_relaxed(1, RIVA_RESET);
 	mb();
 	usleep_range(1000, 2000);
+	printk(KERN_INFO "pil_riva_shutdown (Assert reset to Riva) finish\n");
 
 	/* Deassert reset to Riva */
 	writel_relaxed(0, RIVA_RESET);
 	mb();
+	printk(KERN_INFO "pil_riva_shutdown (Deassert reset to Riva) finish\n");
 
 	clk_disable_unprepare(drv->xo);
+	printk(KERN_INFO "pil_riva_shutdown (clk_disable_unprepare) finish\n");
 	pil_riva_remove_proxy_votes_now(pil->dev);
 
+	printk(KERN_INFO "pil_riva_shutdown exit\n");
 	return 0;
 }
 
@@ -303,6 +313,7 @@ static struct pil_reset_ops pil_riva_ops = {
 	.shutdown = pil_riva_shutdown,
 };
 
+#ifndef CONFIG_MSM_INSECURE_PIL_RIVA
 static int pil_riva_init_image_trusted(struct pil_desc *pil,
 		const u8 *metadata, size_t size)
 {
@@ -314,6 +325,8 @@ static int pil_riva_reset_trusted(struct pil_desc *pil)
 	struct riva_data *drv = dev_get_drvdata(pil->dev);
 	int ret;
 
+	printk(KERN_INFO "pil_riva_reset_trusted enter\n");
+
 	ret = clk_prepare_enable(drv->xo);
 	if (ret)
 		return ret;
@@ -322,6 +335,7 @@ static int pil_riva_reset_trusted(struct pil_desc *pil)
 	if (!ret)
 		ret = pas_auth_and_reset(PAS_RIVA);
 	clk_disable_unprepare(drv->xo);
+	printk(KERN_INFO "pil_riva_reset_trusted exit\n");
 	return ret;
 }
 
@@ -330,6 +344,8 @@ static int pil_riva_shutdown_trusted(struct pil_desc *pil)
 	int ret;
 	struct riva_data *drv = dev_get_drvdata(pil->dev);
 
+	printk(KERN_INFO "pil_riva_shutdown_trusted enter\n");
+
 	ret = clk_prepare_enable(drv->xo);
 	if (ret)
 		return ret;
@@ -337,6 +353,7 @@ static int pil_riva_shutdown_trusted(struct pil_desc *pil)
 	pil_riva_remove_proxy_votes_now(pil->dev);
 	clk_disable_unprepare(drv->xo);
 
+	printk(KERN_INFO "pil_riva_shutdown_trusted exit\n");
 	return ret;
 }
 
@@ -346,6 +363,7 @@ static struct pil_reset_ops pil_riva_ops_trusted = {
 	.auth_and_reset = pil_riva_reset_trusted,
 	.shutdown = pil_riva_shutdown_trusted,
 };
+#endif
 
 static int __devinit pil_riva_probe(struct platform_device *pdev)
 {
@@ -391,13 +409,17 @@ static int __devinit pil_riva_probe(struct platform_device *pdev)
 	desc->name = "wcnss";
 	desc->dev = &pdev->dev;
 
+#ifndef CONFIG_MSM_INSECURE_PIL_RIVA
 	if (pas_supported(PAS_RIVA) > 0) {
 		desc->ops = &pil_riva_ops_trusted;
 		dev_info(&pdev->dev, "using secure boot\n");
 	} else {
+#endif
 		desc->ops = &pil_riva_ops;
 		dev_info(&pdev->dev, "using non-secure boot\n");
+#ifndef CONFIG_MSM_INSECURE_PIL_RIVA
 	}
+#endif
 
 	drv->xo = clk_get(&pdev->dev, "cxo");
 	if (IS_ERR(drv->xo)) {
