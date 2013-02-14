@@ -611,8 +611,6 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 	if (!(mfd->cont_splash_done)) {
 		mfd->cont_splash_done = 1;
 		mdp4_dsi_video_tg_off(vctrl);
-		MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE, 0);
-		mdp4_dsi_video_wait4vsync(0);
 		mipi_dsi_controller_cfg(0);
 	}
 
@@ -745,9 +743,9 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
 
-	atomic_set(&vctrl->vsync_resume, 0);
-
 	mdp4_dsi_video_wait4vsync(cndx);
+
+	atomic_set(&vctrl->vsync_resume, 0);
 
 	complete_all(&vctrl->vsync_comp);
 

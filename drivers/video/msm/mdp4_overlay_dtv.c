@@ -669,9 +669,9 @@ int mdp4_dtv_off(struct platform_device *pdev)
 
 	vctrl = &vsync_ctrl_db[cndx];
 
-	atomic_set(&vctrl->vsync_resume, 0);
-
 	mdp4_dtv_wait4vsync(cndx);
+
+	atomic_set(&vctrl->vsync_resume, 0);
 
 	complete_all(&vctrl->vsync_comp);
 
@@ -702,6 +702,11 @@ int mdp4_dtv_off(struct platform_device *pdev)
 	atomic_set(&vctrl->suspend, 1);
 
 	mdp4_overlay_panel_mode_unset(MDP4_MIXER1, MDP4_PANEL_DTV);
+	
+	if (vctrl->vsync_irq_enabled) {
+		vctrl->vsync_irq_enabled = 0;
+		vsync_irq_disable(INTR_PRIMARY_VSYNC, MDP_PRIM_VSYNC_TERM);
+	}
 
 	undx =  vctrl->update_ndx;
 	vp = &vctrl->vlist[undx];
