@@ -230,11 +230,11 @@ static int msm_csid_release(struct v4l2_subdev *sd)
 	if (rc < 0)
 		pr_err("%s: regulator off failed\n", __func__);
 
-	msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
-		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+	//msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+	//	ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 
-	msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
-		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+	//msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+	//	ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 
 	iounmap(csid_dev->base);
 	csid_dev->base = NULL;
