@@ -1356,7 +1356,12 @@ static void fsa9485_dock_cb(int attached)
 
 	switch (set_cable_status) {
 	case CABLE_TYPE_CARDOCK:
-		value.intval = POWER_SUPPLY_TYPE_CARDOCK;
+		if (!gpio_get_value_cansleep(
+			PM8921_GPIO_PM_TO_SYS(
+			PMIC_GPIO_OTG_POWER))) {
+			value.intval = POWER_SUPPLY_TYPE_BATTERY;
+		} else
+			value.intval = POWER_SUPPLY_TYPE_CARDOCK;
 		break;
 	case CABLE_TYPE_NONE:
 		value.intval = POWER_SUPPLY_TYPE_BATTERY;
@@ -4408,6 +4413,10 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm8960_device_watchdog,
 #ifdef CONFIG_MSM_RTB
 	&msm_rtb_device,
+#endif
+#ifdef CONFIG_MSM_EBI_ERP
+	&msm8960_device_ebi1_ch0_erp,
+	&msm8960_device_ebi1_ch1_erp,
 #endif
 	&msm8960_device_cache_erp,
 #ifdef CONFIG_MSM_CACHE_DUMP
