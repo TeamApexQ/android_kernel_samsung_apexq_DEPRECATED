@@ -349,6 +349,8 @@ void mdp4_lcdc_wait4vsync(int cndx)
 
 	mdp4_lcdc_vsync_irq_ctrl(cndx, 1);
 
+	mdp4_lcdc_vsync_irq_ctrl(cndx, 1);
+
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 
 	if (vctrl->wait_vsync_cnt == 0)
