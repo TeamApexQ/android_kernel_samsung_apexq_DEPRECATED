@@ -669,9 +669,9 @@ int mdp4_dtv_off(struct platform_device *pdev)
 
 	vctrl = &vsync_ctrl_db[cndx];
 
-	atomic_set(&vctrl->vsync_resume, 0);
-
 	mdp4_dtv_wait4vsync(cndx);
+
+	atomic_set(&vctrl->vsync_resume, 0);
 
 	complete_all(&vctrl->vsync_comp);
 

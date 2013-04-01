@@ -286,7 +286,6 @@ int mdp4_dsi_video_pipe_commit(int cndx, int wait)
 static void mdp4_video_vsync_irq_ctrl(int cndx, int enable)
 {
 	struct vsycn_ctrl *vctrl;
-	static int vsync_irq_cnt;
 
 	vctrl = &vsync_ctrl_db[cndx];
 
@@ -743,9 +742,9 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
 
-	atomic_set(&vctrl->vsync_resume, 0);
-
 	mdp4_dsi_video_wait4vsync(cndx);
+
+	atomic_set(&vctrl->vsync_resume, 0);
 
 	complete_all(&vctrl->vsync_comp);
 
@@ -1067,7 +1066,6 @@ static void mdp4_dsi_video_do_blt(struct msm_fb_data_type *mfd, int enable)
 	int cndx = 0;
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
-
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
 
