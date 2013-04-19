@@ -21,6 +21,8 @@
 #include <media/msm_camera.h>
 #include <mach/gpio.h>
 #include <mach/camera.h>
+#include <linux/export.h>
+#include <linux/module.h>
 
 #include <mach/camera.h>
 #include <mach/vreg.h>

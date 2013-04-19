@@ -598,6 +598,10 @@ static int mipi_samsung_disp_on(struct platform_device *pdev)
 	static int boot_on;
 #endif
 
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) && defined(READ_REGISTER_ESD)
+	int id2;
+#endif
+
 	mfd = platform_get_drvdata(pdev);
 	if (unlikely(!mfd))
 		return -ENODEV;
@@ -838,9 +842,22 @@ static int mipi_samsung_disp_on(struct platform_device *pdev)
 #endif
 
 #ifdef READ_REGISTER_ESD
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
+	id2 = (msd.mpd->manufacture_id>>8) & 0xFF;
+
+	if ((id2 == 0xA6) || (id2 == 0xB6)) {
+		queue_delayed_work(msd.mpd->esd_workqueue,
+				&(msd.mpd->esd_work), ESD_INTERVAL * HZ);
+		pr_info("%s ESD FUNCTION QUEUED", __func__);
+	} else
+		pr_info("%s ESD FUNCTION NOT QUEUED", __func__);
+
+	wake_lock(&(msd.mpd->esd_wake_lock));
+#else
 	queue_delayed_work(msd.mpd->esd_workqueue,
 				&(msd.mpd->esd_work), ESD_INTERVAL * HZ);
 	wake_lock(&(msd.mpd->esd_wake_lock));
+#endif
 #endif
 
 	return 0;
@@ -870,7 +887,9 @@ static int mipi_samsung_disp_off(struct platform_device *pdev)
 		return -EINVAL;
 
 	mipi_samsung_disp_send_cmd(mfd, PANEL_READY_TO_OFF, false);
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 	mipi_samsung_disp_send_cmd(mfd, PANEL_OFF, false);
+#endif
 
 	msd.mpd->ldi_acl_stat = false;
 
@@ -1396,8 +1415,9 @@ static void esd_test_work_func(struct work_struct *work)
 		pr_info("%s NO PDEV.\n", __func__);
 		return;
 	}
+#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 	return;
-
+#endif
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 	read_error_register(mfd);
 	pr_info("%s E5H=0x%x esd_cnt:%d\n", __func__, error_buf[0], esd_cnt);

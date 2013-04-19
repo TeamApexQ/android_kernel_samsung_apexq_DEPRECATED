@@ -20,8 +20,11 @@
 #include <linux/slab.h>
 #include <media/msm_camera.h>
 #include <media/v4l2-subdev.h>
-#include <mach/gpio.h>
+//#include <mach/gpio.h>
 #include <mach/camera.h>
+#include <mach/gpio-v1.h>
+#include <linux/export.h>
+#include <linux/module.h>
 
 #include <asm/mach-types.h>
 #include <mach/vreg.h>
@@ -1380,6 +1383,7 @@ void sensor_native_control(void __user *arg)
 		}
 		break;
 
+#if 0
 	case EXT_CAM_FLASH:
 		if (ctrl_info.value_1 == 0) {/*off*/
 			isx012_set_flash(0);
@@ -1389,6 +1393,7 @@ void sensor_native_control(void __user *arg)
 			isx012_set_flash(FLASHMODE_FLASH);
 		}
 		break;
+#endif
 
 	case EXT_CAM_FLASH_MODE:
 		isx012_ctrl->flash_mode = ctrl_info.value_1;

@@ -1710,7 +1710,7 @@ int __init msm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat)
 	pdev->dev.platform_data = plat;
 	return platform_device_register(pdev);
 }
-#if defined(CONFIG_MACH_M2)
+#if defined(CONFIG_MACH_M2) || defined (CONFIG_MACH_APEXQ)
 static struct resource resources_qup_i2c_gsbi1[] = {
 	{
 		.name	= "gsbi_qup_i2c_addr",
@@ -2387,26 +2387,26 @@ static struct resource resources_qup_spi_gsbi11[] = {
 	/*test: Qualcomm, DMA SPI, end */
 	{
 		.name   = "spi_clk",
-		.start  = GPIO_CAM_SPI_SCLK,
-		.end    = GPIO_CAM_SPI_SCLK,
+		.start  = -1,
+		.end    = -1,
 		.flags  = IORESOURCE_IO,
 	},
 	{
 		.name   = "spi_miso",
-		.start  = GPIO_CAM_SPI_MISO,
-		.end    = GPIO_CAM_SPI_MISO,
+		.start  = -1,
+		.end    = -1,
 		.flags  = IORESOURCE_IO,
 	},
 	{
 		.name   = "spi_mosi",
-		.start  = GPIO_CAM_SPI_MOSI,
-		.end    = GPIO_CAM_SPI_MOSI,
+		.start  = -1,
+		.end    = -1,
 		.flags  = IORESOURCE_IO,
 	},
 	{
 		.name   = "spi_cs",
-		.start  = GPIO_CAM_SPI_SSN,
-		.end    = GPIO_CAM_SPI_SSN,
+		.start  = -1,
+		.end    = -1,
 		.flags  = IORESOURCE_IO,
 	},
 #ifdef CONFIG_VP_A2220
