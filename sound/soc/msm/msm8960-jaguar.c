@@ -1864,7 +1864,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "msm-stub-rx",
 		.no_codec = 1,
 		.no_pcm = 1,
-		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
+		.be_hw_params_fixup = msm8960_proxy_be_hw_params_fixup,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
 	},
 	{
@@ -1876,7 +1876,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "msm-stub-tx",
 		.no_codec = 1,
 		.no_pcm = 1,
-		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
+		.be_hw_params_fixup = msm8960_proxy_be_hw_params_fixup,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
 	},
 	/* AUX PCM Backend DAI Links */
