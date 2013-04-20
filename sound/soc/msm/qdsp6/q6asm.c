@@ -865,6 +865,7 @@ static int32_t q6asm_callback(struct apr_client_data *data, void *priv)
 	}
 
 	pr_debug("%s: session[%d]opcode[0x%x] \
+		case ASM_STREAM_CMD_OPEN_WRITE_COMPRESSED:
 		token[0x%x]payload_s[%d] src[%d] dest[%d]\n", __func__,
 		ac->session, data->opcode,
 		data->token, data->payload_size, data->src_port,
@@ -1367,6 +1368,72 @@ int q6asm_open_read_v2_1(struct audio_client *ac,
 	if (rc < 0) {
 		pr_err("open failed op[0x%x]rc[%d]\n", \
 						open.hdr.opcode, rc);
+		goto fail_cmd;
+	}
+	rc = wait_event_timeout(ac->cmd_wait,
+			(atomic_read(&ac->cmd_state) == 0), 5*HZ);
+	if (!rc) {
+		pr_err("%s: timeout. waited for OPEN_WRITE rc[%d]\n", __func__,
+			rc);
+		goto fail_cmd;
+	}
+	return 0;
+fail_cmd:
+	return -EINVAL;
+}
+
+int q6asm_open_write_compressed(struct audio_client *ac, uint32_t format)
+{
+	int rc = 0x00;
+	struct asm_stream_cmd_open_write_compressed open;
+
+	if ((ac == NULL) || (ac->apr == NULL)) {
+		pr_err("%s: APR handle NULL\n", __func__);
+		return -EINVAL;
+	}
+	pr_debug("%s: session[%d] wr_format[0x%x]", __func__, ac->session,
+		format);
+
+	q6asm_add_hdr(ac, &open.hdr, sizeof(open), TRUE);
+
+	open.hdr.opcode = ASM_STREAM_CMD_OPEN_WRITE_COMPRESSED;
+
+	switch (format) {
+	case FORMAT_AC3:
+		open.format = AC3_DECODER;
+		break;
+	case FORMAT_EAC3:
+		open.format = EAC3_DECODER;
+		break;
+	case FORMAT_MP3:
+		open.format = MP3;
+		break;
+	case FORMAT_DTS:
+		open.format = DTS;
+		break;
+	case FORMAT_AAC:
+		open.format = MPEG4_AAC;
+		break;
+	case FORMAT_ATRAC:
+		open.format = ATRAC;
+		break;
+	case FORMAT_WMA_V10PRO:
+		open.format = WMA_V10PRO;
+		break;
+	case FORMAT_MAT:
+		open.format = MAT;
+		break;
+	default:
+		pr_err("%s: Invalid format[%d]\n", __func__, format);
+		goto fail_cmd;
+	}
+	/*Below flag indicates the DSP that Compressed audio input
+	stream is not IEC 61937 or IEC 60958 packetizied*/
+	open.flags = 0x00000000;
+	rc = apr_send_pkt(ac->apr, (uint32_t *) &open);
+	if (rc < 0) {
+		pr_err("%s: open failed op[0x%x]rc[%d]\n", \
+					__func__, open.hdr.opcode, rc);
 		goto fail_cmd;
 	}
 	rc = wait_event_timeout(ac->cmd_wait,
