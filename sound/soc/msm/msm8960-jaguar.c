@@ -1305,6 +1305,17 @@ static int msm8960_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
+static int msm8960_proxy_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+                       struct snd_pcm_hw_params *params)
+{
+       struct snd_interval *rate = hw_param_interval(params,
+       SNDRV_PCM_HW_PARAM_RATE);
+
+       pr_debug("%s()\n", __func__);
+       rate->min = rate->max = 48000;
+
+       return 0;
+}
 int msm8960_aux_pcm_get_gpios(void)
 {
 	int ret = 0;
@@ -1401,6 +1412,9 @@ static int msm8660_i2s_hw_params(struct snd_pcm_substream *substream,
 {
 	int rate = params_rate(params);
 	int bit_clk_set = 0;
+        pr_info("%s Codec Clock 0x%x ; Rx Bit Clock %x\n", __func__,
+                       (unsigned int)codec_clk, (unsigned int)rx_bit_clk);
+
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		bit_clk_set = I2S_MCLK_RATE / (rate * 2 *
@@ -1417,6 +1431,8 @@ static int msm8660_i2s_hw_params(struct snd_pcm_substream *substream,
 
 static void msm8960_i2s_shutdown(struct snd_pcm_substream *substream)
 {
+       pr_info("%s Codec Clock 0x%x ; Rx Bit Clock %x\n", __func__,
+                       (unsigned int)codec_clk, (unsigned int)rx_bit_clk);
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (rx_bit_clk) {
 			clk_disable(rx_bit_clk);
@@ -1495,6 +1511,7 @@ static int msm8960_i2s_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
+	pr_info("%s\n", __func__);
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		configure_i2s_rx_gpio();
 		codec_clk = clk_get(NULL, "i2s_spkr_osr_clk");
@@ -1847,6 +1864,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "msm-stub-rx",
 		.no_codec = 1,
 		.no_pcm = 1,
+		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
 	},
 	{
@@ -1858,6 +1876,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "msm-stub-tx",
 		.no_codec = 1,
 		.no_pcm = 1,
+		.be_hw_params_fixup = msm_proxy_be_hw_params_fixup,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
 	},
 	/* AUX PCM Backend DAI Links */
