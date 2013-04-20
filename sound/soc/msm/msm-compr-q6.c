@@ -25,7 +25,6 @@
 #include <sound/pcm.h>
 #include <sound/initval.h>
 #include <sound/control.h>
-#include <sound/q6asm.h>
 #include <asm/dma.h>
 #include <linux/dma-mapping.h>
 #include <linux/android_pmem.h>
@@ -182,7 +181,7 @@ static int msm_compr_playback_prepare(struct snd_pcm_substream *substream)
 	struct msm_audio *prtd = &compr->prtd;
 	int ret;
 
-	pr_debug("compressed stream prepare\n");
+	pr_debug("%s\n", __func__);
 	prtd->pcm_size = snd_pcm_lib_buffer_bytes(substream);
 	prtd->pcm_count = snd_pcm_lib_period_bytes(substream);
 	prtd->pcm_irq_pos = 0;
@@ -232,10 +231,6 @@ static int msm_compr_trigger(struct snd_pcm_substream *substream, int cmd)
 		q6asm_cmd_nowait(prtd->audio_client, CMD_PAUSE);
 		atomic_set(&prtd->start, 0);
 		break;
-	case SND_AUDIOCODEC_AC3_PASS_THROUGH:
-		pr_debug("compressd playback, no need to send"
-			" the decoder params\n");
-		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -255,15 +250,13 @@ static void populate_codec_list(struct compr_audio *compr,
 	compr->info.compr_cap.min_fragments = runtime->hw.periods_min;
 	compr->info.compr_cap.max_fragments = runtime->hw.periods_max;
 	compr->info.compr_cap.codecs[0] = SND_AUDIOCODEC_MP3;
-	compr->info.compr_cap.codecs[1] = SND_AUDIOCODEC_AAC;
-	compr->info.compr_cap.codecs[2] = SND_AUDIOCODEC_AC3_PASS_THROUGH;
-
 	/* Add new codecs here */
 }
 
 static int msm_compr_open(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *soc_prtd = substream->private_data;
 	struct compr_audio *compr;
 	struct msm_audio *prtd;
 	int ret = 0;
@@ -293,6 +286,9 @@ static int msm_compr_open(struct snd_pcm_substream *substream)
 	pr_info("%s: session ID %d\n", __func__, prtd->audio_client->session);
 
 	prtd->session_id = prtd->audio_client->session;
+	msm_pcm_routing_reg_phy_stream(soc_prtd->dai_link->be_id,
+			prtd->audio_client->perf_mode,
+			prtd->session_id, substream->stream);
 
 	prtd->cmd_ack = 1;
 
@@ -364,7 +360,6 @@ static snd_pcm_uframes_t msm_compr_pointer(struct snd_pcm_substream *substream)
 {
 
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *soc_prtd = substream->private_data;
 	struct compr_audio *compr = runtime->private_data;
 	struct msm_audio *prtd = &compr->prtd;
 
@@ -372,12 +367,6 @@ static snd_pcm_uframes_t msm_compr_pointer(struct snd_pcm_substream *substream)
 		prtd->pcm_irq_pos = 0;
 
 	pr_debug("pcm_irq_pos = %d\n", prtd->pcm_irq_pos);
-		if (compr->info.codec_param.codec.id ==
-				SND_AUDIOCODEC_AC3_PASS_THROUGH) {
-			msm_pcm_routing_reg_psthr_stream(
-				soc_prtd->dai_link->be_id,
-				prtd->session_id, substream->stream);
-		}
 	return bytes_to_frames(runtime, (prtd->pcm_irq_pos));
 }
 
@@ -408,7 +397,6 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *soc_prtd = substream->private_data;
 	struct compr_audio *compr = runtime->private_data;
 	struct msm_audio *prtd = &compr->prtd;
 	struct snd_dma_buffer *dma_buf = &substream->dma_buffer;
@@ -421,26 +409,10 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 	else
 		return -EINVAL;
 
-	switch (compr->info.codec_param.codec.id) {
-	case SND_AUDIOCODEC_AC3_PASS_THROUGH:
-		ret = q6asm_open_write_compressed(prtd->audio_client,
-					compr->codec);
-		if (ret < 0) {
-			pr_err("%s: compressed Session out open failed\n",
-					__func__);
-			return -ENOMEM;
-		}
-		break;
-	default:
-		ret = q6asm_open_write(prtd->audio_client, compr->codec);
-		if (ret < 0) {
-			pr_err("%s: Session out open failed\n", __func__);
-			return -ENOMEM;
-		}
-		msm_pcm_routing_reg_phy_stream(soc_prtd->dai_link->be_id,
-			prtd->session_id, substream->stream);
-
-		break;
+	ret = q6asm_open_write(prtd->audio_client, compr->codec);
+	if (ret < 0) {
+		pr_err("%s: Session out open failed\n", __func__);
+		return -ENOMEM;
 	}
 	ret = q6asm_set_io_mode(prtd->audio_client, ASYNC_IO_MODE);
 	if (ret < 0) {
@@ -533,10 +505,6 @@ static int msm_compr_ioctl(struct snd_pcm_substream *substream,
 			/* For MP3 we dont need any other parameter */
 			pr_debug("SND_AUDIOCODEC_MP3\n");
 			compr->codec = FORMAT_MP3;
-			break;
-		case SND_AUDIOCODEC_AC3_PASS_THROUGH:
-			pr_debug("SND_AUDIOCODEC_AC3_PASS_THROUGH\n");
-			compr->codec = FORMAT_AC3;
 			break;
 		default:
 			pr_debug("FORMAT_LINEAR_PCM\n");
