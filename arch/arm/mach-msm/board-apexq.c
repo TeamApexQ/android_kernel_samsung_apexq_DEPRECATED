@@ -2683,7 +2683,7 @@ static void __init qwerty_keyboard_init(void)
  * does not need to be as high as 2.85V. It is choosen for
  * microphone sensitivity purpose.
  */
-//#ifndef CONFIG_SLIMBUS_MSM_CTRL
+#ifndef CONFIG_SLIMBUS_MSM_CTRL
 static struct wcd9xxx_pdata tabla_i2c_platform_data = {
 	.irq = MSM_GPIO_TO_INT(58),
 	.irq_base = TABLA_INTERRUPT_BASE,
