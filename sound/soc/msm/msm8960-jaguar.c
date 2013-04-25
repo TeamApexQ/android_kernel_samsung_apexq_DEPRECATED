@@ -140,6 +140,14 @@ static struct clk *rx_bit_clk;
 static struct clk *tx_osr_clk;
 static struct clk *tx_bit_clk;
 
+static struct mutex cdc_mclk_mutex;
+
+struct ext_amp_work {
+       struct delayed_work dwork;
+};
+
+static struct ext_amp_work ext_amp_dwork;
+
 /* Work queue for delaying the amp power on-off to
 remove the static noise during SPK_PA enable */
 
@@ -368,7 +376,6 @@ static int msm8960_lineout_switch_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 #endif
-static struct mutex cdc_mclk_mutex;
 
 static int msm8960_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 		bool dapm)
