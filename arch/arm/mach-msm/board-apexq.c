@@ -220,7 +220,7 @@ int gpio_rev(unsigned int index)
 		return gpio_table[index][BOARD_REV04];
 }
 
-#if defined(CONFIG_TOUCHSCREEN_MXT224)
+#ifdef CONFIG_TOUCHSCREEN_MXT224
 static struct charging_status_callbacks {
 	void	(*tsp_set_charging_cable) (int type);
 } charging_cbs;
@@ -309,7 +309,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 };
 
 #define MSM_PMEM_ADSP_SIZE         0x4E00000 /* 78 Mbytes */
-#define MSM_PMEM_AUDIO_SIZE        0x4CF000
+#define MSM_PMEM_AUDIO_SIZE        0x160000
 #define MSM_PMEM_SIZE 0x2800000 /* 40 Mbytes */
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 #define MSM_HDMI_PRIM_PMEM_SIZE 0x4000000 /* 64 Mbytes */
@@ -328,8 +328,8 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #endif
 #else
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
-#define MSM_ION_SF_SIZE		MSM_PMEM_SIZE
-#define MSM_ION_QSECOM_SIZE	0x600000 /* (6MB) */
+#define MSM_ION_SF_SIZE		0x2200000 /* 34MB */
+#define MSM_ION_QSECOM_SIZE	0x100000 /* (1MB) */
 #ifdef CONFIG_CMA
 #define MSM_ION_HEAP_NUM	9
 #else
@@ -473,42 +473,34 @@ static struct memtype_reserve msm8960_reserve_table[] __initdata = {
 	},
 };
 
+#if defined(CONFIG_MSM_RTB)
+static struct msm_rtb_platform_data msm_rtb_pdata = {
+	.size = SZ_1M,
+};
+
+static int __init msm_rtb_set_buffer_size(char *p)
+{
+	int s;
+
+	s = memparse(p, NULL);
+	msm_rtb_pdata.size = ALIGN(s, SZ_4K);
+	return 0;
+}
+early_param("msm_rtb_size", msm_rtb_set_buffer_size);
+
+static struct platform_device msm_rtb_device = {
+	.name           = "msm_rtb",
+	.id             = -1,
+	.dev            = {
+		.platform_data = &msm_rtb_pdata,
+	},
+};
+#endif
+
 static void __init reserve_rtb_memory(void)
 {
 #if defined(CONFIG_MSM_RTB)
-	msm8960_reserve_table[MEMTYPE_EBI1].size += msm8960_rtb_pdata.size;
-#endif
-}
-
-static void __init size_pmem_devices(void)
-{
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-	android_pmem_adsp_pdata.size = pmem_adsp_size;
-	android_pmem_pdata.size = pmem_size;
-	android_pmem_audio_pdata.size = MSM_PMEM_AUDIO_SIZE;
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-#endif /*CONFIG_ANDROID_PMEM*/
-}
-
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-static void __init reserve_memory_for(struct android_pmem_platform_data *p)
-{
-	msm8960_reserve_table[p->memory_type].size += p->size;
-}
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-#endif /*CONFIG_ANDROID_PMEM*/
-
-static void __init reserve_pmem_memory(void)
-{
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-	reserve_memory_for(&android_pmem_adsp_pdata);
-	reserve_memory_for(&android_pmem_pdata);
-	reserve_memory_for(&android_pmem_audio_pdata);
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-	msm8960_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
+	msm8960_reserve_table[MEMTYPE_EBI1].size += msm_rtb_pdata.size;
 #endif
 }
 
@@ -708,6 +700,7 @@ static void __init msm8960_reserve_fixed_area(unsigned long fixed_area_size)
 	BUG_ON(ret);
 #endif
 }
+
 
 /**
  * Reserve memory for ION and calculate amount of reusable memory for fmem.
@@ -976,12 +969,11 @@ static void reserve_cache_dump_memory(void)
 
 static void __init msm8960_calculate_reserve_sizes(void)
 {
-	size_pmem_devices();
-	reserve_pmem_memory();
 	reserve_ion_memory();
 	reserve_mdp_memory();
 	reserve_rtb_memory();
 	reserve_cache_dump_memory();
+	msm8960_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
 }
 
 static struct reserve_info msm8960_reserve_info __initdata = {
@@ -1018,8 +1010,9 @@ static void __init msm8960_reserve(void)
 {
 	msm8960_set_display_params(prim_panel_name, ext_panel_name);
 	msm_reserve();
-
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_persistent_ram();
+#endif
 
 #ifdef CONFIG_KEXEC_HARDBOOT
 	memblock_remove(KEXEC_HB_PAGE_ADDR, SZ_4K);
@@ -1274,7 +1267,7 @@ static void fsa9485_usb_cb(bool attached)
 		return;
 	}
 
-#if defined(CONFIG_TOUCHSCREEN_MXT224)
+#ifdef CONFIG_TOUCHSCREEN_MXT224
 	if (charging_cbs.tsp_set_charging_cable)
 		charging_cbs.tsp_set_charging_cable(attached);
 #endif
@@ -1907,7 +1900,7 @@ static struct platform_device vibetonz_device = {
 };
 #endif /* CONFIG_VIBETONZ */
 
-#if defined(CONFIG_OPTICAL_TAOS_TRITON)
+#ifdef CONFIG_OPTICAL_TAOS_TRITON
 static struct i2c_gpio_platform_data opt_i2c_gpio_data = {
 	.sda_pin = GPIO_SENSOR_ALS_SDA,
 	.scl_pin = GPIO_SENSOR_ALS_SCL,
@@ -2164,7 +2157,7 @@ static struct bmp_i2c_platform_data bmp180_pdata = {
 };
 #endif
 
-static struct i2c_board_info sns_i2c_borad_info[] = {
+static struct i2c_board_info sns_i2c_board_info[] = {
 #ifdef CONFIG_MPU_SENSORS_MPU6050B1
 	{
 	 I2C_BOARD_INFO(SENSOR_MPU_NAME, 0x68),
@@ -2198,7 +2191,7 @@ static struct i2c_board_info sns_i2c_borad_info[] = {
 		.platform_data = &bmp180_pdata,
 	},
 #endif
-#ifdef CONFIG_INPUT_YAS_MAGNETOMETER
+#ifdef CONFIG_INPUT_YAS_532_ENABLE
 	{
 		I2C_BOARD_INFO("geomagnetic", 0x2e),
 	},
@@ -2210,17 +2203,35 @@ static struct i2c_board_info sns_i2c_borad_info[] = {
 	defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
 static void mpl_init(void)
 {
-	int rc;
-	rc = gpio_request(GPIO_MPU3050_INT, "MPUIRQ");
-	if (rc < 0)
-		pr_err("GPIO_MPU3050_INT gpio_request was failed\n");
-	gpio_direction_input(GPIO_MPU3050_INT);
+	int ret = 0;
+	ret = gpio_request(GPIO_MPU3050_INT, "MPUIRQ");
+	if (ret)
+		pr_err("%s gpio request %d err\n", __func__, GPIO_MPU3050_INT);
+	else
+		gpio_direction_input(GPIO_MPU3050_INT);
 
 #if defined(CONFIG_MPU_SENSORS_MPU6050B1)
 	if (system_rev == BOARD_REV01)
 		mpu_data = mpu_data_01;
 	else if (system_rev < BOARD_REV01)
 		mpu_data = mpu_data_00;
+       mpu_data.reset = gpio_rev(GPIO_MAG_RST);
+#elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
+       if (system_rev <= BOARD_REV04 && system_rev > BOARD_REV01) {
+               mpu6050_data = mpu6050_data_04;
+               inv_mpu_ak8963_data = inv_mpu_ak8963_data_04;
+       } else if (system_rev == BOARD_REV01) {
+               mpu6050_data = mpu6050_data_01;
+               inv_mpu_ak8963_data = inv_mpu_ak8963_data_01;
+       } else if (system_rev < BOARD_REV01) {
+               mpu6050_data = mpu6050_data_00;
+               inv_mpu_ak8963_data = inv_mpu_ak8963_data_00;
+       }
+       if (system_rev < BOARD_REV13)
+               mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
+       else
+               mpu6050_data.reset =
+                       PM8921_GPIO_PM_TO_SYS(gpio_rev(GPIO_MAG_RST));
 #endif
 }
 #endif
