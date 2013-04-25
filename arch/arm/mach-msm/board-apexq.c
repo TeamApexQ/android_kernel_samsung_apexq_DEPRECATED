@@ -1986,7 +1986,7 @@ static int taos_power_on(bool onoff)
 	if (system_rev == BOARD_REV00)
 		gpio_set_value(GPIO_PS_EN, onoff ? 1 : 0);
 	sensor_power_on_vdd(SNS_PWR_KEEP, onoff);
-        return -1;
+        return 0;
 }
 
 
@@ -2021,7 +2021,7 @@ static int taos_led_onoff(bool onoff)
 		}
 	}
 	prev_on = onoff;
-        return -1;
+        return 0;
 
 }
 #endif
@@ -2680,7 +2680,7 @@ static void __init qwerty_keyboard_init(void)
  */
 #ifndef CONFIG_SLIMBUS_MSM_CTRL
 static struct wcd9xxx_pdata tabla_i2c_platform_data = {
-	.irq = MSM_GPIO_TO_INT(58),
+	.irq = MSM_GPIO_TO_INT(GPIO_CODEC_MAD_INTR),
 	.irq_base = TABLA_INTERRUPT_BASE,
 	.num_irqs = NR_TABLA_IRQS,
 	.reset_gpio = PM8921_GPIO_PM_TO_SYS(38),
@@ -4633,6 +4633,7 @@ static struct platform_device *common_devices[] __initdata = {
 #endif
 	&msm8960_iommu_domain_device,
 	&msm_tsens_device,
+	&msm8960_cpu_slp_status,
 };
 
 static struct platform_device *apexq_devices[] __initdata = {
@@ -5349,7 +5350,9 @@ static void __init samsung_apexq_init(void)
 	if (system_rev < BOARD_REV01)
 		qwerty_keyboard_init();
 #endif
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_ramconsole_devices();
+#endif
 	msm8960_i2c_init();
 	msm8960_gfx_init();
 	if (cpu_is_msm8960ab())

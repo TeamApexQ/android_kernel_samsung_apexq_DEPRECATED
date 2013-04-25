@@ -934,12 +934,25 @@ static struct msm_gpiomux_config msm8960_hdmi_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &hdmi_suspend_cfg,
 		},
 	},
+               .gpio = 66,
+               .settings = {
+                       [GPIOMUX_ACTIVE]    = &hdmi_active_4_cfg,
+                       [GPIOMUX_SUSPENDED] = &hdmi_suspend_cfg,
+               },
+       },
 };
 #endif
 
 #if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
 static struct msm_gpiomux_config msm8960_mhl_configs[] __initdata = {
 	{
+               .gpio = GPIO_MHL_SEL,
+               .settings = {
+                       [GPIOMUX_ACTIVE]    = &mhl_active_1_cfg,
+                       [GPIOMUX_SUSPENDED] = &mhl_suspend_cfg,
+               },
+       },
+       {
 		.gpio = GPIO_MHL_EN,
 		.settings = {
 			[GPIOMUX_ACTIVE]    = &mhl_active_1_cfg,
@@ -956,6 +969,7 @@ static struct msm_gpiomux_config msm8960_mhl_configs[] __initdata = {
 	{
 		.gpio = GPIO_MHL_WAKE_UP,
 		.settings = {
+			[GPIOMUX_ACTIVE]    = &mhl_active_1_cfg,
 			[GPIOMUX_SUSPENDED] = &mhl_suspend_cfg,
 		},
 	},
@@ -1077,11 +1091,22 @@ int __init msm8960_init_gpiomux(void)
     msm_gpiomux_install(nc_configs,
             ARRAY_SIZE(nc_configs));
 
+#ifndef CONFIG_SLIMBUS_MSM_CTRL
 	msm_gpiomux_install(msm8960_audio_i2s_rx_codec_configs,
 			ARRAY_SIZE(msm8960_audio_i2s_tx_codec_configs));
 
 	msm_gpiomux_install(msm8960_audio_i2s_tx_codec_configs,
 			ARRAY_SIZE(msm8960_audio_i2s_tx_codec_configs));
+#else
+       msm_gpiomux_install(msm8960_slimbus_config,
+                       ARRAY_SIZE(msm8960_slimbus_config));
+
+       msm_gpiomux_install(msm8960_audio_codec_configs,
+                       ARRAY_SIZE(msm8960_audio_codec_configs));
+#endif
+
+       msm_gpiomux_install(nc_configs,
+                       ARRAY_SIZE(nc_configs));
 
 #ifdef CONFIG_USB_SWITCH_FSA9485
 	msm_gpiomux_install(msm8960_fsa9485_configs,
@@ -1107,6 +1132,11 @@ int __init msm8960_init_gpiomux(void)
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
 	msm_gpiomux_install(msm8960_hdmi_configs,
 			ARRAY_SIZE(msm8960_hdmi_configs));
+#endif
+
+#if defined(CONFIG_VIDEO_MHL_V1) || defined(CONFIG_VIDEO_MHL_V2)
+                       msm_gpiomux_install(msm8960_mhl_configs,
+                                       ARRAY_SIZE(msm8960_mhl_configs));
 #endif
 
 	msm_gpiomux_install(msm8960_mdp_vsync_configs,
