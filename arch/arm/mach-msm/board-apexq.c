@@ -2216,13 +2216,6 @@ static void mpl_init(void)
 	else if (system_rev < BOARD_REV01)
 		mpu_data = mpu_data_00;
        mpu_data.reset = gpio_rev(GPIO_MAG_RST);
-#elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
-       if (system_rev < BOARD_REV01)
-               mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
-       else
-               mpu6050_data.reset =
-                       PM8921_GPIO_PM_TO_SYS(gpio_rev(GPIO_MAG_RST));
-#endif
 }
 #endif
 
