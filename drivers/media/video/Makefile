@@ -211,13 +211,13 @@ obj-$(CONFIG_VIDEO_SAA7164)     += saa7164/
 obj-$(CONFIG_VIDEO_IR_I2C)  += ir-kbd-i2c.o
 
 obj-y	+= davinci/
-obj-$(CONFIG_MSM_CAMERA) += msm/
 
 ifeq ($(CONFIG_S5C73M3),y)
 obj-$(CONFIG_MSM_CAMERA) += msm_zsl/
-endif
-ifeq ($(CONFIG_ISX012),y)
+else ifeq ($(CONFIG_ISX012),y)
 obj-$(CONFIG_MSM_CAMERA) += msm_zsl/
+else
+obj-$(CONFIG_MSM_CAMERA) += msm/
 endif
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
 obj-$(CONFIG_MSM_VIDC_V4L2) += msm_vidc/
