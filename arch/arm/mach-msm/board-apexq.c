@@ -1938,7 +1938,7 @@ static struct taos_platform_data taos_pdata = {
 	.coef_d = 1135,
 };
 
-static struct i2c_board_info opt_i2c_borad_info[] = {
+static struct i2c_board_info opt_i2c_board_info[] = {
 	{
 		I2C_BOARD_INFO("taos", 0x39),
 		.platform_data = &taos_pdata,
@@ -2217,17 +2217,7 @@ static void mpl_init(void)
 		mpu_data = mpu_data_00;
        mpu_data.reset = gpio_rev(GPIO_MAG_RST);
 #elif defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
-       if (system_rev <= BOARD_REV04 && system_rev > BOARD_REV01) {
-               mpu6050_data = mpu6050_data_04;
-               inv_mpu_ak8963_data = inv_mpu_ak8963_data_04;
-       } else if (system_rev == BOARD_REV01) {
-               mpu6050_data = mpu6050_data_01;
-               inv_mpu_ak8963_data = inv_mpu_ak8963_data_01;
-       } else if (system_rev < BOARD_REV01) {
-               mpu6050_data = mpu6050_data_00;
-               inv_mpu_ak8963_data = inv_mpu_ak8963_data_00;
-       }
-       if (system_rev < BOARD_REV13)
+       if (system_rev < BOARD_REV01)
                mpu6050_data.reset = gpio_rev(GPIO_MAG_RST);
        else
                mpu6050_data.reset =
@@ -4899,7 +4889,7 @@ struct i2c_registry {
 
 
 #ifdef CONFIG_SAMSUNG_CMC624
-static struct i2c_board_info cmc624_i2c_borad_info[] = {
+static struct i2c_board_info cmc624_i2c_board_info[] = {
 	{
 		I2C_BOARD_INFO("cmc624", 0x38),
 	},
@@ -5062,24 +5052,24 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_SNS_I2C_BUS_ID,
-		sns_i2c_borad_info,
-		ARRAY_SIZE(sns_i2c_borad_info),
+		sns_i2c_board_info,
+		ARRAY_SIZE(sns_i2c_board_info),
 	},
 #endif
 #ifdef CONFIG_OPTICAL_TAOS_TRITON
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_OPT_I2C_BUS_ID,
-		opt_i2c_borad_info,
-		ARRAY_SIZE(opt_i2c_borad_info),
+		opt_i2c_board_info,
+		ARRAY_SIZE(opt_i2c_board_info),
 	},
 #endif
 #ifdef CONFIG_SAMSUNG_CMC624
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID ,
 		MSM_CMC624_I2C_BUS_ID,
-		cmc624_i2c_borad_info,
-		ARRAY_SIZE(cmc624_i2c_borad_info),
+		cmc624_i2c_board_info,
+		ARRAY_SIZE(cmc624_i2c_board_info),
 	},
 #endif
 	{
@@ -5199,9 +5189,9 @@ static void __init gpio_rev_init(void)
 
 #if defined(CONFIG_MPU_SENSORS_MPU6050B1_411)
 	if (system_rev < BOARD_REV02)
-		sns_i2c_borad_info[0].platform_data = (void *)&mpu6050_data_00;
+		sns_i2c_board_info[0].platform_data = (void *)&mpu6050_data_00;
 	else
-		sns_i2c_borad_info[0].platform_data = (void *)&mpu6050_data_02;
+		sns_i2c_board_info[0].platform_data = (void *)&mpu6050_data_02;
 #endif
 
 }
