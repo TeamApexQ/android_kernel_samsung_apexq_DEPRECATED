@@ -108,7 +108,7 @@ static int msm8960_btsco_ch = 1;
 static struct clk *codec_clk;
 static int clk_users;
 
-static int msm8960_headset_gpios_configured;
+static int msm8960_audio_gpios_configured;
 
 static struct snd_soc_jack hs_jack;
 static struct snd_soc_jack button_jack;
@@ -139,14 +139,6 @@ static struct clk *rx_osr_clk;
 static struct clk *rx_bit_clk;
 static struct clk *tx_osr_clk;
 static struct clk *tx_bit_clk;
-
-static struct mutex cdc_mclk_mutex;
-
-struct ext_amp_work {
-	struct delayed_work dwork;
-};
-
-static struct ext_amp_work ext_amp_dwork;
 
 /* Work queue for delaying the amp power on-off to
 remove the static noise during SPK_PA enable */
@@ -192,6 +184,7 @@ static void msm8960_ext_spk_power_amp_on(u32 spk)
 		if ((msm8960_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_POS) &&
 			(msm8960_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_NEG)) {
 
+			pr_debug("%s Enabling Bottom Speaker\n", __func__);
 			msm8960_enable_ext_spk_amp_gpio(bottom_spk_pamp_gpio);
 			pr_debug("%s: slepping 4 ms after turning on external "
 				" Bottom Speaker Ampl\n", __func__);
@@ -2075,7 +2068,7 @@ static struct platform_device *msm8960_snd_device;
 #define PMIC_GPIO_USEURO_SWITCH 35
 #endif
 
-static int msm8960_configure_headset_mic_gpios(void)
+static int msm8960_configure_audio_gpios(void)
 {
 	int ret;
 	struct pm_gpio param = {
@@ -2201,9 +2194,9 @@ else
 #endif
 	return 0;
 }
-static void msm8960_free_headset_mic_gpios(void)
+static void msm8960_free_audio_gpios(void)
 {
-	if (msm8960_headset_gpios_configured) {
+	if (msm8960_audio_gpios_configured) {
 		gpio_free(PM8921_GPIO_PM_TO_SYS(23));
 		gpio_free(PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USEURO_SWITCH));
 		gpio_free(top_spk_pamp_gpio);
@@ -2262,11 +2255,11 @@ static int __init msm8960_audio_init(void)
 		return ret;
 	}
 
-	if (msm8960_configure_headset_mic_gpios()) {
+	if (msm8960_configure_audio_gpios()) {
 		pr_err("%s Fail to configure headset mic gpios\n", __func__);
-		msm8960_headset_gpios_configured = 0;
+		msm8960_audio_gpios_configured = 0;
 	} else
-		msm8960_headset_gpios_configured = 1;
+		msm8960_audio_gpios_configured = 1;
 
 	mutex_init(&cdc_mclk_mutex);
 	
@@ -2279,7 +2272,7 @@ module_init(msm8960_audio_init);
 
 static void __exit msm8960_audio_exit(void)
 {
-	msm8960_free_headset_mic_gpios();
+	msm8960_free_audio_gpios();
 	kfree(msm8960_dai_list);
 	platform_device_unregister(msm8960_snd_device);
 	kfree(mbhc_cfg.calibration);
