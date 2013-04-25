@@ -2216,6 +2216,7 @@ static void mpl_init(void)
 	else if (system_rev < BOARD_REV01)
 		mpu_data = mpu_data_00;
        mpu_data.reset = gpio_rev(GPIO_MAG_RST);
+#endif
 }
 #endif
 
