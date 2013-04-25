@@ -934,12 +934,13 @@ static struct msm_gpiomux_config msm8960_hdmi_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &hdmi_suspend_cfg,
 		},
 	},
+	{
                .gpio = 66,
                .settings = {
                        [GPIOMUX_ACTIVE]    = &hdmi_active_4_cfg,
                        [GPIOMUX_SUSPENDED] = &hdmi_suspend_cfg,
                },
-       },
+        },
 };
 #endif
 
