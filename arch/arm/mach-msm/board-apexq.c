@@ -2739,6 +2739,7 @@ static struct wcd9xxx_pdata tabla_i2c_platform_data = {
 	},
 };
 #endif
+#endif
 #define MSM_WCNSS_PHYS	0x03000000
 #define MSM_WCNSS_SIZE	0x280000
 
