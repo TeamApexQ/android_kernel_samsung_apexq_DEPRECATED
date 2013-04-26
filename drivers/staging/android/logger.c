@@ -768,6 +768,16 @@ static int __init init_log(struct logger_log *log)
 }
 
 #ifdef CONFIG_SEC_DEBUG
+struct secdbg_logger_log_info log_info = {
+                .stinfo = {
+                        .buffer_offset = offsetof(struct logger_log, buffer),
+                        .w_off_offset = offsetof(struct logger_log, w_off),
+                        .head_offset = offsetof(struct logger_log, head),
+                        .size_offset = offsetof(struct logger_log, size),
+                        .size_t_typesize = sizeof(size_t),
+                },
+};
+
 int sec_debug_subsys_set_logger_info(
 	struct sec_debug_subsys_logger_log_info *log_info)
 {
