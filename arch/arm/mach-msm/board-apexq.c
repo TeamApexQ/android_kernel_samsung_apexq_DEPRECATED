@@ -2736,7 +2736,7 @@ static struct wcd9xxx_pdata wcd9xxx_i2c_platform_data = {
 #endif
 #endif
 
-static struct wcd9xxx_pdata apq8064_tabla20_platform_data = {
+static struct wcd9xxx_pdata msm_tabla20_platform_data = {
 	.slimbus_slave_device = {
                 .name = "tabla-slave",
                 .e_addr = {0, 0, 0x60, 0, 0x17, 2},
@@ -2795,11 +2795,11 @@ static struct wcd9xxx_pdata apq8064_tabla20_platform_data = {
 	},
 };
 
-static struct slim_device apq8064_slim_tabla20 = {
+static struct slim_device msm_slim_tabla20 = {
         .name = "tabla2x-slim",
         .e_addr = {0, 1, 0x60, 0, 0x17, 2},
         .dev = {
-                .platform_data = &apq8064_tabla20_platform_data,
+                .platform_data = &msm_tabla20_platform_data,
         },
 };
 
@@ -4315,6 +4315,14 @@ static struct spi_board_info spi_board_info[] __initdata = {
 	},
 };
 
+static struct slim_boardinfo msm_slim_devices[] = {
+        {
+                .bus_num = 1,
+                .slim_slave = &msm_slim_tabla20,
+        },
+        /* add more slimbus slaves as needed */
+};
+
 static struct platform_device msm_device_saw_core0 = {
 	.name          = "saw-regulator",
 	.id            = 0,
@@ -5498,6 +5506,8 @@ static void __init samsung_apexq_init(void)
 	}
 #endif
 
+        slim_register_board_info(msm_slim_devices,
+                ARRAY_SIZE(msm_slim_devices));
 	msm8960_init_dsps();
 #if 0
 	msm_pm_set_rpm_wakeup_irq(RPM_APCC_CPU0_WAKE_UP_IRQ);
