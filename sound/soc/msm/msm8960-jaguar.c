@@ -2262,10 +2262,8 @@ static int __init msm8960_audio_init(void)
 		platform_device_put(msm8960_snd_device);
 		kfree(mbhc_cfg.calibration);
 		kfree(msm8960_dai_list);
-		printk(KERN_INFO "%s: platform_device_add(msm8960_snd_device done", __func__);
+		printk(KERN_INFO "%s: platform_device_add msm8960_snd_device failed", __func__);
 		return ret;
-	} else {
-		pr_err("%s platform_device_add(msm8960_snd_device) failed, no ret\n", __func__);
 	}
 
 	if (msm8960_configure_audio_gpios()) {

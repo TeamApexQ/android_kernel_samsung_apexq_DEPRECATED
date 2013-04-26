@@ -2679,7 +2679,7 @@ static void __init qwerty_keyboard_init(void)
  * microphone sensitivity purpose.
  */
 #ifndef CONFIG_SLIMBUS_MSM_CTRL
-static struct wcd9xxx_pdata tabla_i2c_platform_data = {
+static struct wcd9xxx_pdata wcd9xxx_i2c_platform_data = {
 	.irq = MSM_GPIO_TO_INT(GPIO_CODEC_MAD_INTR),
 	.irq_base = TABLA_INTERRUPT_BASE,
 	.num_irqs = NR_TABLA_IRQS,
@@ -4136,22 +4136,22 @@ static struct i2c_board_info mxt_device_info[] __initdata = {
 #define TABLA_DIGITAL1_I2C_SLAVE_ADDR	0x66
 #define TABLA_DIGITAL2_I2C_SLAVE_ADDR	0x55
 
-static struct i2c_board_info tabla_device_info[] __initdata = {
+static struct i2c_board_info wcd9xxx_device_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("tabla top level", TABLA_I2C_SLAVE_ADDR),
-		.platform_data = &tabla_i2c_platform_data,
+		.platform_data = &wcd9xxx_i2c_platform_data,
 	},
 	{
 		I2C_BOARD_INFO("tabla analog", TABLA_ANALOG_I2C_SLAVE_ADDR),
-		.platform_data = &tabla_i2c_platform_data,
+		.platform_data = &wcd9xxx_i2c_platform_data,
 	},
 	{
 		I2C_BOARD_INFO("tabla digital1", TABLA_DIGITAL1_I2C_SLAVE_ADDR),
-		.platform_data = &tabla_i2c_platform_data,
+		.platform_data = &wcd9xxx_i2c_platform_data,
 	},
 	{
 		I2C_BOARD_INFO("tabla digital2", TABLA_DIGITAL2_I2C_SLAVE_ADDR),
-		.platform_data = &tabla_i2c_platform_data,
+		.platform_data = &wcd9xxx_i2c_platform_data,
 	},
 };
 #endif
@@ -5083,8 +5083,8 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
 		MSM_8960_GSBI1_QUP_I2C_BUS_ID,
-		tabla_device_info,
-		ARRAY_SIZE(tabla_device_info),
+		wcd9xxx_device_info,
+		ARRAY_SIZE(wcd9xxx_device_info),
 	},
 #endif
 
