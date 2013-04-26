@@ -8,6 +8,7 @@ obj-$(CONFIG_SND_MSM7KV2_DAI_SOC) += snd-soc-msm7kv2-dai.o
 # MSM Platform Support
 snd-soc-msm-objs := msm-pcm.o msm7k-pcm.o
 obj-$(CONFIG_SND_MSM_SOC) += snd-soc-msm.o
+ccflags-$(CONFIG_SND_MSM_SOC) += -DDEBUG
 
 snd-soc-msmv2-objs := msm7kv2-dsp.o msm7kv2-pcm.o
 obj-$(CONFIG_SND_MSM7KV2_SOC) += snd-soc-msmv2.o
