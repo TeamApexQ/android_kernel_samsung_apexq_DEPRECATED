@@ -1684,7 +1684,7 @@ static struct snd_soc_dai_link msm8960_i2s_be_dai[] = {
 		.ops = &msm8960_i2s_be_ops,
 	},
 };
-#if 0
+
 static struct snd_soc_dai_link msm8960_slimbus_be_dai[] = {
 	{
 		.name = LPASS_BE_SLIMBUS_0_RX,
@@ -1712,7 +1712,7 @@ static struct snd_soc_dai_link msm8960_slimbus_be_dai[] = {
 		.ops = &msm8960_be_ops,
 	},
 };
-#endif
+
 /* Digital audio interface glue - connects codec <---> CPU */
 static struct snd_soc_dai_link msm8960_dai[] = {
 	/* FrontEnd DAI Links */
