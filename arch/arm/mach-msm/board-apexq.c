@@ -2733,8 +2733,7 @@ static struct wcd9xxx_pdata wcd9xxx_i2c_platform_data = {
 	},
 	},
 };
-#endif
-#endif
+#else
 
 static struct wcd9xxx_pdata msm_tabla20_platform_data = {
 	.slimbus_slave_device = {
@@ -2803,6 +2802,7 @@ static struct slim_device msm_slim_tabla20 = {
         },
 };
 
+#endif
 
 #define MSM_WCNSS_PHYS	0x03000000
 #define MSM_WCNSS_SIZE	0x280000
@@ -4730,6 +4730,8 @@ static struct platform_device *apexq_devices[] __initdata = {
 #ifdef CONFIG_SLIMBUS_MSM_CTRL
 	&msm_cpudai0,
 	&msm_cpudai1,
+	&msm8960_cpudai_slimbus_2_rx,
+	&msm8960_cpudai_slimbus_2_tx,
 #else
 	&msm_i2s_cpudai0,
 	&msm_i2s_cpudai1,
