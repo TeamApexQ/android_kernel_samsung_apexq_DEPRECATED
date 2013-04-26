@@ -1091,15 +1091,15 @@ static int wcd9xxx_slim_get_laddr(struct slim_device *sb,
 	const unsigned long timeout = jiffies +
 				      msecs_to_jiffies(SLIMBUS_PRESENT_TIMEOUT);
 
+        pr_debug("%s: start\n", __func__);
 	do {
 		ret = slim_get_logical_addr(sb, e_addr, e_len, laddr);
 		if (!ret)
 			break;
 		/* Give SLIMBUS time to report present and be ready. */
 		usleep_range(1000, 1000);
-		pr_debug_ratelimited("%s: retyring get logical addr\n",
-				     __func__);
 	} while time_before(jiffies, timeout);
+        pr_debug("%s: end\n", __func__);
 
 	return ret;
 }
