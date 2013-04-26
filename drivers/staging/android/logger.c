@@ -30,7 +30,7 @@
 #include <asm/ioctls.h>
 
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include "sec_debug.h"
 #endif
 
 /*
