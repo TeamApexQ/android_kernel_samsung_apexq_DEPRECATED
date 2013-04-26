@@ -2077,6 +2077,7 @@ static struct platform_device *msm8960_snd_device;
 
 static int msm8960_configure_audio_gpios(void)
 {
+	printk(KERN_INFO "%s: start", __func__);
 	int ret;
 	struct pm_gpio param = {
 		.direction      = PM_GPIO_DIR_OUT,
@@ -2120,9 +2121,10 @@ static int msm8960_configure_audio_gpios(void)
 		gpio_free(PM8921_GPIO_PM_TO_SYS(23));
 		gpio_free(PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USEURO_SWITCH));
 		return ret;
-		} else
+	} else {
 		gpio_direction_output(
 			PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_USEURO_SWITCH), 0);
+	}
 
 	ret = gpio_request(bottom_spk_pamp_gpio, "BOTTOM_SPK_AMP");
 	if (ret) {
@@ -2199,6 +2201,7 @@ else
 	gpio_tlmm_config(GPIO_CFG(GPIO_CRADLE_SW_EN, 0, GPIO_CFG_OUTPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 #endif
+	printk(KERN_INFO "%s: end", __func__);
 	return 0;
 }
 static void msm8960_free_audio_gpios(void)
@@ -2259,19 +2262,25 @@ static int __init msm8960_audio_init(void)
 		platform_device_put(msm8960_snd_device);
 		kfree(mbhc_cfg.calibration);
 		kfree(msm8960_dai_list);
+		printk(KERN_INFO "%s: platform_device_add(msm8960_snd_device done", __func__);
 		return ret;
+	} else {
+		pr_err("%s platform_device_add(msm8960_snd_device) failed, no ret\n", __func__);
 	}
 
 	if (msm8960_configure_audio_gpios()) {
 		pr_err("%s Fail to configure headset mic gpios\n", __func__);
 		msm8960_audio_gpios_configured = 0;
-	} else
+	} else {
+		printk(KERN_INFO "%s: msm8960_audio_gpios_configured", __func__);
 		msm8960_audio_gpios_configured = 1;
+	}
 
 	mutex_init(&cdc_mclk_mutex);
 	
 	INIT_DELAYED_WORK(&ext_amp_dwork.dwork,
 			external_speaker_amp_work);
+	printk(KERN_INFO "%s: end, ret %d", __func__, ret);
 	return ret;
 
 }

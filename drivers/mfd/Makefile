@@ -70,6 +70,7 @@ obj-$(CONFIG_TWL6040_CORE)	+= twl6040-core.o twl6040-irq.o
 obj-$(CONFIG_MFD_MC13XXX)	+= mc13xxx-core.o
 
 obj-$(CONFIG_MFD_CORE)		+= mfd-core.o
+ccflags-$(CONFIG_MFD_CORE)		+= -DDEBUG
 
 obj-$(CONFIG_EZX_PCAP)		+= ezx-pcap.o
 
@@ -79,6 +80,7 @@ obj-$(CONFIG_MCP_UCB1200)	+= ucb1x00-core.o
 obj-$(CONFIG_MCP_UCB1200_TS)	+= ucb1x00-ts.o
 
 obj-$(CONFIG_WCD9310_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
+ccflags-$(CONFIG_WCD9310_CODEC)    += -DDEBUG
 obj-$(CONFIG_WCD9304_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
 obj-$(CONFIG_WCD9320_CODEC)       += wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o
 
@@ -135,6 +137,7 @@ obj-$(CONFIG_MFD_S5M_CORE)	+= s5m-core.o s5m-irq.o
 obj-$(CONFIG_PMIC8058)		+= pmic8058.o
 obj-$(CONFIG_PMIC8901)		+= pmic8901.o
 obj-$(CONFIG_MFD_PM8921_CORE) 	+= pm8921-core.o
+ccflags-$(CONFIG_MFD_PM8921_CORE) 	+= -DDEBUG
 obj-$(CONFIG_MFD_PM8821_CORE) 	+= pm8821-core.o
 obj-$(CONFIG_MFD_PM8018_CORE) 	+= pm8018-core.o
 obj-$(CONFIG_MFD_PM8038_CORE) 	+= pm8038-core.o
