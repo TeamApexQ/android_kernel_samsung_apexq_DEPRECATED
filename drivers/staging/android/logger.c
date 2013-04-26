@@ -771,7 +771,6 @@ static int __init init_log(struct logger_log *log)
 int sec_debug_subsys_set_logger_info(
 	struct sec_debug_subsys_logger_log_info *log_info)
 {
-	/*
 	struct secdbg_logger_log_info log_info = {
 		.stinfo = {
 			.buffer_offset = offsetof(struct logger_log, buffer),
@@ -781,7 +780,7 @@ int sec_debug_subsys_set_logger_info(
 			.size_t_typesize = sizeof(size_t),
 		},
 	};
-	*/
+	
 	log_info->stinfo.buffer_offset = offsetof(struct logger_log, buffer);
 	log_info->stinfo.w_off_offset = offsetof(struct logger_log, w_off);
 	log_info->stinfo.head_offset = offsetof(struct logger_log, head);
