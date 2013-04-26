@@ -2803,6 +2803,7 @@ static struct slim_device msm_slim_tabla20 = {
 };
 
 #endif
+#endif
 
 #define MSM_WCNSS_PHYS	0x03000000
 #define MSM_WCNSS_SIZE	0x280000
@@ -4316,11 +4317,13 @@ static struct spi_board_info spi_board_info[] __initdata = {
 };
 
 static struct slim_boardinfo msm_slim_devices[] = {
+#ifdef CONFIG_SLIMBUS_MSM_CTRL
         {
                 .bus_num = 1,
                 .slim_slave = &msm_slim_tabla20,
         },
         /* add more slimbus slaves as needed */
+#endif
 };
 
 static struct platform_device msm_device_saw_core0 = {
