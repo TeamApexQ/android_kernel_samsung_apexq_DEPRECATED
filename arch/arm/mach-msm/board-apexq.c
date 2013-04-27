@@ -2687,53 +2687,15 @@ static struct wcd9xxx_pdata wcd9xxx_i2c_platform_data = {
 	.micbias = {
 		.ldoh_v = TABLA_LDOH_2P85_V,
 		.cfilt1_mv = 1800,
-		.cfilt2_mv = 2700,
+		.cfilt2_mv = 1800,
 		.cfilt3_mv = 1800,
 		.bias1_cfilt_sel = TABLA_CFILT1_SEL,
 		.bias2_cfilt_sel = TABLA_CFILT2_SEL,
 		.bias3_cfilt_sel = TABLA_CFILT3_SEL,
 		.bias4_cfilt_sel = TABLA_CFILT3_SEL,
-	},
-	.regulator = {
-	{
-		.name = "CDC_VDD_CP",
-		.min_uV = 1800000,
-		.max_uV = 1800000,
-		.optimum_uA = WCD9XXX_CDC_VDDA_CP_CUR_MAX,
-	},
-	{
-		.name = "CDC_VDDA_RX",
-		.min_uV = 1800000,
-		.max_uV = 1800000,
-		.optimum_uA = WCD9XXX_CDC_VDDA_RX_CUR_MAX,
-	},
-	{
-		.name = "CDC_VDDA_TX",
-		.min_uV = 1800000,
-		.max_uV = 1800000,
-		.optimum_uA = WCD9XXX_CDC_VDDA_TX_CUR_MAX,
-	},
-	{
-		.name = "VDDIO_CDC",
-		.min_uV = 1800000,
-		.max_uV = 1800000,
-		.optimum_uA = WCD9XXX_VDDIO_CDC_CUR_MAX,
-	},
-	{
-		.name = "VDDD_CDC_D",
-		.min_uV = 1225000,
-		.max_uV = 1225000,
-		.optimum_uA = WCD9XXX_VDDD_CDC_D_CUR_MAX,
-	},
-	{
-		.name = "CDC_VDDA_A_1P2V",
-		.min_uV = 1225000,
-		.max_uV = 1225000,
-		.optimum_uA = WCD9XXX_VDDD_CDC_A_CUR_MAX,
-	},
-	},
+	}
 };
-#else
+#endif
 
 static struct wcd9xxx_pdata msm_tabla20_platform_data = {
 	.slimbus_slave_device = {
@@ -2801,9 +2763,19 @@ static struct slim_device msm_slim_tabla20 = {
                 .platform_data = &msm_tabla20_platform_data,
         },
 };
+#endif
 
+static struct slim_boardinfo msm_slim_devices[] = {
+#ifdef CONFIG_SLIMBUS_MSM_CTRL
+        {
+                .bus_num = 1,
+                .slim_slave = &msm_slim_tabla20,
+        },
+
+        /* add more slimbus slaves as needed */
 #endif
-#endif
+};
+
 
 #define MSM_WCNSS_PHYS	0x03000000
 #define MSM_WCNSS_SIZE	0x280000
@@ -4265,6 +4237,7 @@ static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi12_pdata = {
 	.clk_freq = 400000,
 	.src_clk_rate = 24000000,
 };
+
 #if 0
 static struct msm_rpm_platform_data msm_rpm_data = {
 	.reg_base_addrs = {
@@ -4314,16 +4287,6 @@ static struct spi_board_info spi_board_info[] __initdata = {
 		.chip_select            = 1,
 		.mode                   = SPI_MODE_0,
 	},
-};
-
-static struct slim_boardinfo msm_slim_devices[] = {
-#ifdef CONFIG_SLIMBUS_MSM_CTRL
-        {
-                .bus_num = 1,
-                .slim_slave = &msm_slim_tabla20,
-        },
-        /* add more slimbus slaves as needed */
-#endif
 };
 
 static struct platform_device msm_device_saw_core0 = {
@@ -4664,6 +4627,13 @@ static struct platform_device *common_devices[] __initdata = {
 	&fish_battery_device,
 #endif
 	&msm8960_fmem_device,
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+        &msm8960_android_pmem_device,
+        &msm8960_android_pmem_adsp_device,
+        &msm8960_android_pmem_audio_device,
+#endif
+#endif
 #ifdef CONFIG_KEYBOARD_GPIO
 	&msm8960_gpio_keys_device,
 #endif

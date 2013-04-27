@@ -122,13 +122,13 @@ static struct gpiomux_setting gpio_eth_config = {
 	.func = GPIOMUX_FUNC_GPIO,
 };
 #endif
-#if 0
+
 static struct gpiomux_setting slimbus = {
 	.func = GPIOMUX_FUNC_1,
 	.drv = GPIOMUX_DRV_8MA,
 	.pull = GPIOMUX_PULL_KEEPER,
 };
-#endif
+
 static struct gpiomux_setting gpio_key_active_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
@@ -530,7 +530,7 @@ static struct msm_gpiomux_config msm8960_gsbi_configs[] __initdata = {
 	},
 };
 
-#if 0
+
 static struct msm_gpiomux_config msm8960_slimbus_config[] __initdata = {
 	{
 		.gpio	= 60,		/* slimbus data */
@@ -545,7 +545,7 @@ static struct msm_gpiomux_config msm8960_slimbus_config[] __initdata = {
 		},
 	},
 };
-#endif
+
 static struct msm_gpiomux_config msm8960_audio_codec_configs[] __initdata = {
 	{
 		.gpio = 59,
@@ -1082,9 +1082,6 @@ int __init msm8960_init_gpiomux(void)
 	msm_gpiomux_install(wcnss_5wire_interface,
 			ARRAY_SIZE(wcnss_5wire_interface));
 
-	msm_gpiomux_install(msm8960_audio_codec_configs,
-			ARRAY_SIZE(msm8960_audio_codec_configs));
-
 #ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
 	if (system_rev >= BOARD_REV04)
 		msm_gpiomux_install(sdc4_interface, ARRAY_SIZE(sdc4_interface));
@@ -1093,19 +1090,23 @@ int __init msm8960_init_gpiomux(void)
     msm_gpiomux_install(nc_configs,
             ARRAY_SIZE(nc_configs));
 
-       msm_gpiomux_install(msm8960_audio_codec_configs,
-                       ARRAY_SIZE(msm8960_audio_codec_configs));
-
+#ifndef CONFIG_SLIMBUS_MSM_CTRL
 	msm_gpiomux_install(msm8960_audio_i2s_rx_codec_configs,
 			ARRAY_SIZE(msm8960_audio_i2s_tx_codec_configs));
 
 	msm_gpiomux_install(msm8960_audio_i2s_tx_codec_configs,
 			ARRAY_SIZE(msm8960_audio_i2s_tx_codec_configs));
-#if 0
+#else
        msm_gpiomux_install(msm8960_slimbus_config,
                        ARRAY_SIZE(msm8960_slimbus_config));
 
+        msm_gpiomux_install(msm8960_audio_codec_configs,
+                        ARRAY_SIZE(msm8960_audio_codec_configs));
+
+        msm_gpiomux_install(msm8960_audio_auxpcm_configs,
+                        ARRAY_SIZE(msm8960_audio_auxpcm_configs));
 #endif
+
        msm_gpiomux_install(nc_configs,
                        ARRAY_SIZE(nc_configs));
 #ifdef CONFIG_USB_SWITCH_FSA9485

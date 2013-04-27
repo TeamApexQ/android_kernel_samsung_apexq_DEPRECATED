@@ -1040,7 +1040,6 @@ static int msm8960_i2s_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-#if 0
 static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err;
@@ -1138,8 +1137,7 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 			&& !machine_is_ESPRESSO10_SPR()
 			&& !machine_is_ESPRESSO10_ATT()
 			&& !machine_is_ESPRESSO_SPR()
-			&& !machine_is_KONA()
-		&& !machine_is_APEXQ())) {
+			&& !machine_is_APEXQ())) {
 		/* using mbhc driver for earjack */
 		if (GPIO_DETECT_USED) {
 			mbhc_cfg.gpio = PM8921_GPIO_PM_TO_SYS(JACK_DETECT_GPIO);
@@ -1195,7 +1193,7 @@ static struct snd_soc_dsp_link int_fm_hl_media = {
 		SND_SOC_DSP_TRIGGER_POST
 	},
 };
-#endif
+
 static int msm8960_i2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1228,7 +1226,7 @@ static int msm8960_i2s_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
-#if 0
+
 static int msm8960_slim_0_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1260,7 +1258,7 @@ static int msm8960_slim_0_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
-#endif
+
 static int msm8960_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -1625,7 +1623,6 @@ static void msm8960_auxpcm_shutdown(struct snd_pcm_substream *substream)
 }
 
 /* Not used */
-#if 0
 static int msm8960_startup(struct snd_pcm_substream *substream)
 {
 	pr_info("%s(): substream = %s  stream = %d\n", __func__,
@@ -1643,7 +1640,7 @@ static struct snd_soc_ops msm8960_be_ops = {
 	.startup = msm8960_startup,
 	.shutdown = msm8960_shutdown,
 };
-#endif
+
 static struct snd_soc_ops msm8960_i2s_be_ops = {
 	.startup = msm8960_i2s_startup,
 	.shutdown = msm8960_i2s_shutdown,
@@ -1657,6 +1654,7 @@ static struct snd_soc_ops msm8960_auxpcm_be_ops = {
 
 static struct snd_soc_dai_link *msm8960_dai_list;
 
+#ifndef CONFIG_SLIMBUS_MSM_CTRL
 static struct snd_soc_dai_link msm8960_i2s_be_dai[] = {
 	{
 		.name = LPASS_BE_PRI_I2S_RX,
@@ -1684,7 +1682,7 @@ static struct snd_soc_dai_link msm8960_i2s_be_dai[] = {
 		.ops = &msm8960_i2s_be_ops,
 	},
 };
-
+#else
 static struct snd_soc_dai_link msm8960_slimbus_be_dai[] = {
 	{
 		.name = LPASS_BE_SLIMBUS_0_RX,
@@ -1712,7 +1710,7 @@ static struct snd_soc_dai_link msm8960_slimbus_be_dai[] = {
 		.ops = &msm8960_be_ops,
 	},
 };
-
+#endif
 /* Digital audio interface glue - connects codec <---> CPU */
 static struct snd_soc_dai_link msm8960_dai[] = {
 	/* FrontEnd DAI Links */
@@ -1782,6 +1780,8 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.ignore_pmdown_time = 1, /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
 	},
+// need to fix soc-audio soc-audio.0: platform msm-pcm-hostless not registered
+#if 0 
 	/* Hostless PMC purpose */
 	{
 		.name = "SLIMBUS_0 Hostless",
@@ -1809,6 +1809,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+#endif
 	{
 		.name = "MSM AFE-PCM RX",
 		.stream_name = "AFE-PROXY RX",
@@ -1841,6 +1842,9 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.ignore_pmdown_time = 1, /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA4,
 	},
+
+// need to fix soc-audio soc-audio.0: platform msm-pcm-hostless not registered
+#if 0 
 	{
 		.name = "AUXPCM Hostless",
 		.stream_name = "AUXPCM Hostless",
@@ -1868,6 +1872,7 @@ static struct snd_soc_dai_link msm8960_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+#endif
 	{
 		.name = "VoLTE",
 		.stream_name = "VoLTE",
@@ -2222,24 +2227,23 @@ static int __init msm8960_audio_init(void)
 	int ret;
 	msm8960_dai_list = kzalloc(sizeof(msm8960_dai) +
 			2 * sizeof(struct snd_soc_dai_link), GFP_KERNEL);
-/*
-	if (tabla_get_intf_type() == TABLA_INTERFACE_TYPE_SLIMBUS) {
+
+#ifdef CONFIG_SLIMBUS_MSM_CTRL
 		memcpy(msm8960_dai_list, msm8960_dai, sizeof(msm8960_dai));
 		memcpy(&msm8960_dai_list[ARRAY_SIZE(msm8960_dai)],
 			msm8960_slimbus_be_dai, sizeof(msm8960_slimbus_be_dai));
 		snd_soc_card_msm8960.dai_link = msm8960_dai_list;
 		snd_soc_card_msm8960.num_links = ARRAY_SIZE(msm8960_dai) +
 					ARRAY_SIZE(msm8960_slimbus_be_dai);
-	} else if (tabla_get_intf_type() == TABLA_INTERFACE_TYPE_I2C) {
-*/
+#else
+
 		memcpy(msm8960_dai_list, msm8960_dai, sizeof(msm8960_dai));
 		memcpy(&msm8960_dai_list[ARRAY_SIZE(msm8960_dai)],
 				msm8960_i2s_be_dai, sizeof(msm8960_i2s_be_dai));
 		snd_soc_card_msm8960.dai_link = msm8960_dai_list;
 		snd_soc_card_msm8960.num_links = ARRAY_SIZE(msm8960_dai) +
 					ARRAY_SIZE(msm8960_i2s_be_dai);
-//	}
-
+#endif
 	printk(KERN_INFO "%s: start", __func__);
 	mbhc_cfg.calibration = def_tabla_mbhc_cal();
 	if (!mbhc_cfg.calibration) {
