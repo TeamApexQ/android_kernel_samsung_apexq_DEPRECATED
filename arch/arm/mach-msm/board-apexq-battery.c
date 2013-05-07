@@ -386,9 +386,9 @@ static sec_charging_current_t charging_current_table[] = {
 	{1000,	500,	200,	0},
 	{1000,	700,	200,	0},
 	{1000,	950,	200,	0},
+	{0,	0,	0,	0},
+	{0,	0,	0,	0},
 	{1000,	950,	200,	0},
-	{0,	0,	0,	0},
-	{0,	0,	0,	0},
 };
 
 static int polling_time_table[] = {

@@ -91,6 +91,10 @@ static int msm_csid_config(struct csid_cfg_params *cfg_params)
 	void __iomem *csidbase;
 	csid_dev = v4l2_get_subdevdata(cfg_params->subdev);
 	csidbase = csid_dev->base;
+	if(csidbase == NULL){
+		pr_err("<ERROR> csidbase is NULL");
+		return -1;
+	}
 	csid_params = cfg_params->parms;
 	val = csid_params->lane_cnt - 1;
 	val |= csid_params->lane_assign << 2;
@@ -191,7 +195,7 @@ static int msm_csid_init(struct v4l2_subdev *sd, uint32_t *csid_version)
 	rc = request_irq(csid_dev->irq->start, msm_csid_irq,
 		IRQF_TRIGGER_RISING, "csid", csid_dev);
 #endif
-	return 0;
+	return rc;
 
 clk_enable_failed:
 	msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
@@ -201,7 +205,6 @@ vreg_enable_failed:
 		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 vreg_config_failed:
 	iounmap(csid_dev->base);
-	csid_dev->base = NULL;
 	return rc;
 }
 
@@ -229,15 +232,15 @@ static int msm_csid_release(struct v4l2_subdev *sd)
 		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 	if (rc < 0)
 		pr_err("%s: regulator off failed\n", __func__);
+#if 0 // fixed kernel panic 
+	msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
 
-	//msm_camera_enable_vreg(&csid_dev->pdev->dev, csid_vreg_info,
-	//	ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
-
-	//msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
-	//	ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+	msm_camera_config_vreg(&csid_dev->pdev->dev, csid_vreg_info,
+		ARRAY_SIZE(csid_vreg_info), &csid_dev->csi_vdd, 0);
+#endif
 
 	iounmap(csid_dev->base);
-	csid_dev->base = NULL;
 	return 0;
 }
 

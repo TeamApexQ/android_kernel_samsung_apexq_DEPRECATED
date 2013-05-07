@@ -2130,7 +2130,6 @@ static int __init msm8960_audio_init(void)
 	
 	INIT_DELAYED_WORK(&ext_amp_dwork.dwork,
 			external_speaker_amp_work);
-	mutex_init(&cdc_mclk_mutex);
 	return ret;
 
 }

@@ -423,6 +423,7 @@ static unsigned int mxt_timer_state;
 static unsigned int good_check_flag;
 static u8 cal_check_flag;
 static u8 Doing_calibration_falg;
+static DEFINE_MUTEX(tsp_mutex);
 
 static uint8_t calibrate_chip(void)
 {
@@ -464,6 +465,7 @@ static uint8_t calibrate_chip(void)
 	if (!ret && !ret1 && !Doing_calibration_falg) {
 		/* change calibration suspend settings to zero
 		   until calibration confirmed good */
+		mutex_lock(&tsp_mutex);
 		ret = write_mem(copy_data, copy_data->cmd_proc
 				+ CMD_CALIBRATE_OFFSET, 1, &cal_data);
 
@@ -476,6 +478,8 @@ static uint8_t calibrate_chip(void)
 			Doing_calibration_falg = 1;
 			printk(KERN_ERR"[TSP] calibration success!!!\n");
 		}
+		gForceCalibration_flag = 1;
+		mutex_unlock(&tsp_mutex);
 	}
 	gForceCalibration_flag = 1;
 
@@ -572,6 +576,8 @@ static void mxt224_ta_probe(int ta_status)
 				48, 2, val);
 		}
 	printk(KERN_DEBUG"[TSP] threshold : %d\n", threshold_e);
+	calibrate_chip();
+	
 }
 
 static void check_chip_calibration(void)
@@ -1233,12 +1239,13 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 					mxt_time_point =
 						jiffies_to_msecs(jiffies);
 				}
-
+				mutex_lock(&tsp_mutex);
 				if ((gForceCalibration_flag == 1)
 						&& (gIgnoreReport_flag == 1)) {
 					gIgnoreReport_flag = 0;
 					printk(KERN_DEBUG"[TSP] Now! Enable Touch Report!!!\n");
 				}
+				mutex_unlock(&tsp_mutex);
 			}
 			if ((msg[1]&0x04) == 0x04) /* I2C checksum error */
 				printk(KERN_DEBUG"[TSP] I2C checksum error\n");

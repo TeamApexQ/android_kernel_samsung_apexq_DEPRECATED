@@ -69,7 +69,7 @@ static struct db8131m_exif_data
 
 static struct db8131m_exif_data *db8131m_exif;
 
-#if defined(CONFIG_MACH_GOGH) || defined(CONFIG_MACH_INFINITE)
+#if defined(CONFIG_MACH_GOGH)
 #include "db8131m_reg_v2.h"
 #elif defined(CONFIG_MACH_JASPER)
 #include "db8131m_reg_jasper.h"
@@ -81,6 +81,8 @@ static struct db8131m_exif_data *db8131m_exif;
 #include "db8131m_reg_comanche.h"
 #elif defined(CONFIG_MACH_EXPRESS)
 #include "db8131m_reg_express.h"
+#elif defined(CONFIG_MACH_INFINITE)
+#include "db8131m_reg_infinite.h"
 #else
 #include "db8131m_reg.h"
 #endif
@@ -787,6 +789,17 @@ void db8131m_set_preview(void)
 			} else {
 				CAM_DEBUG("INIT_preview for M ver");
 				DB8_WRT_LIST(db8131m_common_M);
+			}
+#elif defined(CONFIG_MACH_EXPRESS) || defined(CONFIG_MACH_INFINITE)
+			unsigned char module_ver;
+			db8131m_i2c_write_16bit(0xFF02);
+			db8131m_i2c_read(0x09, &module_ver);
+			if (module_ver == 0x4) {
+				CAM_DEBUG("INIT_preview for S version");
+				DB8_WRT_LIST(db8131m_common);
+			} else {
+				CAM_DEBUG("INIT_preview for A version");
+				DB8_WRT_LIST(db8131m_common_A);
 			}
 #else
 			DB8_WRT_LIST(db8131m_common);

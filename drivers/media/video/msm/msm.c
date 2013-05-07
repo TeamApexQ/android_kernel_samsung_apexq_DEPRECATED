@@ -131,6 +131,7 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	struct msm_ctrl_cmd *ctrlcmd;
 	struct msm_device_queue *queue =  &server_dev->ctrl_q;
 	void *ctrlcmd_data;
+	uint8_t wait_count;
 
 	struct v4l2_event v4l2_evt;
 	struct msm_isp_event_ctrl *isp_event;
@@ -171,20 +172,28 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 
 	/* wait for config return status */
 	D("Waiting for config status\n");
-	rc = wait_event_interruptible_timeout(queue->wait,
-		!list_empty_careful(&queue->list),
-		msecs_to_jiffies(out->timeout_ms));
+	wait_count = 2;
+	do {
+		rc = wait_event_interruptible_timeout(queue->wait,
+			!list_empty_careful(&queue->list),
+			msecs_to_jiffies(out->timeout_ms));
+		wait_count--;
+		if (rc != -ERESTARTSYS)
+			break;
+	 	D("%s: wait_event interrupted by signal, remain_count = %d",
+			__func__, wait_count);
+	} while (wait_count > 0);
 	D("Waiting is over for config status\n");
 	if (list_empty_careful(&queue->list)) {
 		if (!rc)
 			rc = -ETIMEDOUT;
 		if (rc < 0) {
 			rcmd = msm_dequeue(queue, list_control);
-			if (!rcmd) {
+			if (rcmd) {
 				free_qcmd(rcmd);
 				rcmd = NULL;
 			}
-			kfree(isp_event);
+			/*kfree(isp_event); QC patch for double kfree. Case: 01019693*/
 			if (g_server_dev.server_evt_id == 0)
 				g_server_dev.server_evt_id++;
 			pr_err("%s: wait_event error %d\n", __func__, rc);

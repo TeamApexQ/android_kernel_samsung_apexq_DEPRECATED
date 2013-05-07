@@ -21,6 +21,11 @@
  */
 
 #include "mipi_samsung_esd_refresh.h"
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+	#include "mdp4_video_enhance.h"
+#endif
 
 static struct mipi_controls mipi_control;
 static struct esd_data_t *esd_enable;
@@ -83,7 +88,11 @@ static void lcd_esd_seq(struct esd_data_t *p_esd_data)
 		p_esd_data->refresh_ongoing = false;
 		set_esd_refresh(false);
 		p_esd_data->esd_processed_count++;
-
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_CMD_QHD_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+		is_negativeMode_on();
+#endif
 		/* Restore brightness */
 		pdata = mipi_control.mipi_dev->dev.platform_data;
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) || \

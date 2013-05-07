@@ -816,7 +816,7 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 				dev_err(&client->dev,
 						"%s: err %d\n", __func__, ret);
 
-			if (pdata->smartdock_cb)
+			if (pdata->audio_dock_cb)
 				pdata->audio_dock_cb(FSA9485_ATTACHED);
 		}
 	/* Detached */
@@ -925,7 +925,7 @@ static int fsa9485_detect_dev(struct fsa9485_usbsw *usbsw)
 					dev_err(&client->dev,
 						"%s: err %d\n", __func__, ret);
 
-			if (pdata->smartdock_cb)
+			if (pdata->audio_dock_cb)
 				pdata->audio_dock_cb(FSA9485_DETACHED);
 			usbsw->adc = 0;
 		}
