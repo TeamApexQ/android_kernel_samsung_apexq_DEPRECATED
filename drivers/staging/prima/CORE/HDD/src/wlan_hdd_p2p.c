@@ -370,7 +370,8 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
     return 0;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
+//#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
+#if 1
 int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan, bool offchan,
                      enum nl80211_channel_type channel_type,
@@ -403,7 +404,8 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
     hdd_adapter_t *goAdapter;
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
+//#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
+#if 1
     noack = dont_wait_for_ack;
 #endif
 
@@ -1146,7 +1148,8 @@ void hdd_indicateMgmtFrame( hdd_adapter_t *pAdapter,
     //Indicate Frame Over Normal Interface
     hddLog( LOG1, FL("Indicate Frame over NL80211 Interface"));
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+//#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+#if 1
     cfg80211_rx_mgmt( pAdapter->dev, freq, 0,
                       pbFrames, nFrameLength,
                       GFP_ATOMIC );
