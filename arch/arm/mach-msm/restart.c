@@ -305,7 +305,7 @@ void arch_reset(char mode, const char *cmd)
 			__raw_writel(0x77665501, restart_reason);
 		}
 	}
-#ifdef CONFIG_SEC_DEBUG
+#if 1
 	else {
 		printk(KERN_NOTICE "%s : clear reset flag\r\n", __func__);
 		/* clear abnormal reset flag */
