@@ -10,8 +10,6 @@
  * published by the Free Software Foundation.
  */
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-
 #define DEBUG
 
 #include <linux/battery/sec_battery.h>

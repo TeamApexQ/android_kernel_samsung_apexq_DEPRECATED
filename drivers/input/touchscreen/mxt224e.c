@@ -13,8 +13,6 @@
  *
  */
 
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/input.h>

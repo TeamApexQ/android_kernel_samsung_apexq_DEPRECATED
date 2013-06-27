@@ -48,9 +48,6 @@ allowed_warnings = set([
     "msm_sdcc.c:5402",
     "msm_sdcc.c:5402",
     "msm_sdcc.c:5439",
-    "db8131m_v4l2.c:834",
-    "isx012_v4l2.c:422",
-    "ISX012.c:719"
  ])
 
 # Capture the name of the object file, can find it.

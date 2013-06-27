@@ -15,8 +15,6 @@
  * GNU General Public License for more details.
  *
  */
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-function"
 
 #define DEBUG
 
