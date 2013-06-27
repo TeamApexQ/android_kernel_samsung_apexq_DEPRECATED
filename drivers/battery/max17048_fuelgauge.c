@@ -16,9 +16,6 @@
  *
  */
 
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-function"
-
 #include <linux/battery/sec_fuelgauge.h>
 
 static int max17048_write_reg(struct i2c_client *client, int reg, u8 value)
