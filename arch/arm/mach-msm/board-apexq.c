@@ -3345,21 +3345,11 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 	.vbus_power		= msm_hsusb_vbus_power,
 	.power_budget		= 750,
 	.phy_init_seq = phy_settings,
-	.smb347s		= false,
+	.smb347s		= true,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.bus_scale_table	= &usb_bus_scale_pdata,
 #endif
 };
-
-#ifdef CONFIG_USB_HOST_NOTIFY
-static void __init msm_otg_power_init(void)
-{
-	if (system_rev >= BOARD_REV01)
-		msm_otg_pdata.smb347s = true;
-	else
-		msm_otg_pdata.smb347s = false;
-}
-#endif
 
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 #define HSIC_HUB_RESET_GPIO	91
@@ -5354,10 +5344,6 @@ static void __init samsung_apexq_init(void)
 	}
 	android_usb_pdata.swfi_latency =
 		msm_rpmrs_levels[0].latency_us;
-
-#ifdef CONFIG_USB_HOST_NOTIFY
-	msm_otg_power_init();
-#endif
 
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 	if (machine_is_msm8960_liquid()) {
