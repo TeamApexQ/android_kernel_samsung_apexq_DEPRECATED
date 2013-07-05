@@ -17,8 +17,7 @@
 #include <linux/types.h>
 #include <mach/board.h>
 
-#define	ISX012_DEBUG
-#ifdef ISX012_DEBUG
+#ifdef CONFIG_MSM_CAMERA_DEBUG
 #define CAM_DEBUG(fmt, arg...)	\
 do {\
 	printk(KERN_DEBUG "\033[[ISX012] %s:" fmt "\033[0m\n", \
