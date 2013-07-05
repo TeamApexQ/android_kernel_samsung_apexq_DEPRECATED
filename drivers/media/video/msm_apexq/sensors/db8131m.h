@@ -23,9 +23,7 @@
 #ifndef DB8131M_H
 #define DB8131M_H
 
-
-#define	DB8131M_DEBUG
-#ifdef DB8131M_DEBUG
+#ifdef CONFIG_MSM_CAMERA_DEBUG
 #define CAM_DEBUG(fmt, arg...)	\
 		do {\
 			printk(KERN_DEBUG "[DB8131M] %s : " \
