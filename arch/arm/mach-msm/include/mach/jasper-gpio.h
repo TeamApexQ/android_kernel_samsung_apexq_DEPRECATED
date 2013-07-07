@@ -83,6 +83,8 @@
 #define GPIO_MSENSE_RST			68
 #define GPIO_MPU3050_INT		69
 #endif
+#define GPIO_TOUCHKEY_SDA               71
+#define GPIO_TOUCHKEY_SCL               72
 #define GPIO_USB_I2C_SDA		73
 #define GPIO_USB_I2C_SCL		74
 #define GPIO_CAM2_RST_N			76
@@ -104,7 +106,9 @@
 #define PMIC_GPIO_OTG_EN		22
 #define PMIC_GPIO_MAIN_CAM_STBY		24
 #define PMIC_GPIO_CODEC_RST		38
+#define PMIC_GPIO_OTG_POWER             42
 #define PMIC_GPIO_LCD_RST		43
+#define PMIC_GPIO_VGH_ESD_DET           44
 
 #if defined(CONFIG_CHARGER_SMB347)
 #define PMIC_GPIO_CHG_STAT		17
