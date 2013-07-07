@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -18,26 +18,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-/*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
- */
+
 /*
  * Airgo Networks, Inc proprietary. All rights reserved.
  * This file limProcessActionFrame.cc contains the code
@@ -53,7 +34,14 @@
 #include "wniApi.h"
 #include "sirApi.h"
 #include "aniGlobal.h"
+#ifdef FEATURE_WLAN_NON_INTEGRATED_SOC
+#include "halDataStruct.h"
+#endif
+#if (WNI_POLARIS_FW_PRODUCT == AP)
+#include "wniCfgAp.h"
+#else
 #include "wniCfgSta.h"
+#endif
 #include "schApi.h"
 #include "utilsApi.h"
 #include "limTypes.h"
@@ -69,7 +57,6 @@
 #if defined WLAN_FEATURE_VOWIFI
 #include "rrmApi.h"
 #endif
-#include "limSessionUtils.h"
 
 #if defined FEATURE_WLAN_CCX
 #include "ccxApi.h"
@@ -101,21 +88,12 @@ typedef enum
 void limStopTxAndSwitchChannel(tpAniSirGlobal pMac, tANI_U8 sessionId)
 {
     tANI_U8 isFullPowerRequested = 0;
-    tpPESession psessionEntry;
 
-    psessionEntry = peFindSessionBySessionId( pMac , sessionId );
+    PELOG1(limLog(pMac, LOG1, FL("Channel switch Mode == %d\n"), 
+                       pMac->lim.gLimChannelSwitch.switchMode);)
 
-    if( NULL == psessionEntry )
-    {
-      limLog(pMac, LOGE, FL("Session %d  not active\n "), sessionId);
-      return;
-    }
-
-    PELOG1(limLog(pMac, LOG1, FL("Channel switch Mode == %d"),
-                       psessionEntry->gLimChannelSwitch.switchMode);)
-
-    if (psessionEntry->gLimChannelSwitch.switchMode == eSIR_CHANSW_MODE_SILENT ||
-        psessionEntry->gLimChannelSwitch.switchCount <= SIR_CHANSW_TX_STOP_MAX_COUNT)
+    if (pMac->lim.gLimChannelSwitch.switchMode == eSIR_CHANSW_MODE_SILENT ||
+        pMac->lim.gLimChannelSwitch.switchCount <= SIR_CHANSW_TX_STOP_MAX_COUNT)
     {
         /* Freeze the transmission */
         limFrameTransmissionControl(pMac, eLIM_TX_ALL, eLIM_STOP_TX);
@@ -134,12 +112,11 @@ void limStopTxAndSwitchChannel(tpAniSirGlobal pMac, tANI_U8 sessionId)
         limFrameTransmissionControl(pMac, eLIM_TX_ALL, eLIM_RESUME_TX);
     }
 
-    pMac->lim.limTimers.gLimChannelSwitchTimer.sessionId = sessionId;
     /* change the channel immediatly only if the channel switch count is 0 and the 
      * device is not in powersave 
      * If the device is in powersave channel switch should happen only after the
      * device comes out of the powersave */
-    if (psessionEntry->gLimChannelSwitch.switchCount == 0) 
+    if (pMac->lim.gLimChannelSwitch.switchCount == 0) 
     {
         if(limIsSystemInActiveState(pMac))
         {
@@ -154,12 +131,14 @@ void limStopTxAndSwitchChannel(tpAniSirGlobal pMac, tANI_U8 sessionId)
         }
         return;
     }
-    MTRACE(macTrace(pMac, TRACE_CODE_TIMER_ACTIVATE, sessionId, eLIM_CHANNEL_SWITCH_TIMER));
 
+    MTRACE(macTrace(pMac, TRACE_CODE_TIMER_ACTIVATE, 0, eLIM_CHANNEL_SWITCH_TIMER));
+
+    pMac->lim.limTimers.gLimChannelSwitchTimer.sessionId = sessionId;
 
     if (tx_timer_activate(&pMac->lim.limTimers.gLimChannelSwitchTimer) != TX_SUCCESS)
     {
-        limLog(pMac, LOGP, FL("tx_timer_activate failed"));
+        limLog(pMac, LOGP, FL("tx_timer_activate failed\n"));
     }
     return;
 }
@@ -176,56 +155,32 @@ void limStopTxAndSwitchChannel(tpAniSirGlobal pMac, tANI_U8 sessionId)
 ------------------------------------------------------------*/
 tSirRetStatus limStartChannelSwitch(tpAniSirGlobal pMac, tpPESession psessionEntry)
 {
-    PELOG1(limLog(pMac, LOG1, FL("Starting the channel switch"));)
-    
-    /*If channel switch is already running and it is on a different session, just return*/  
-    /*This need to be removed for MCC */
-    if( limIsChanSwitchRunning (pMac) &&
-        psessionEntry->gLimSpecMgmt.dot11hChanSwState != eLIM_11H_CHANSW_RUNNING )
-    {
-       limLog(pMac, LOGW, FL("Ignoring channel switch on session %d"), psessionEntry->peSessionId);
-       return eSIR_SUCCESS;
-    }
-     
+    PELOG1(limLog(pMac, LOG1, FL("Starting the channel switch\n"));)
     /* Deactivate and change reconfigure the timeout value */
-    //limDeactivateAndChangeTimer(pMac, eLIM_CHANNEL_SWITCH_TIMER);
-    MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, psessionEntry->peSessionId, eLIM_CHANNEL_SWITCH_TIMER));
-    if (tx_timer_deactivate(&pMac->lim.limTimers.gLimChannelSwitchTimer) != eSIR_SUCCESS)
-    {
-        limLog(pMac, LOGP, FL("tx_timer_deactivate failed!"));
-        return eSIR_FAILURE;
-    }
-
-    if (tx_timer_change(&pMac->lim.limTimers.gLimChannelSwitchTimer,
-                psessionEntry->gLimChannelSwitch.switchTimeoutValue,
-                            0) != TX_SUCCESS)
-    {
-        limLog(pMac, LOGP, FL("tx_timer_change failed "));
-        return eSIR_FAILURE;
-    }
+    limDeactivateAndChangeTimer(pMac, eLIM_CHANNEL_SWITCH_TIMER);
 
     /* Follow the channel switch, forget about the previous quiet. */
     //If quiet is running, chance is there to resume tx on its timeout.
     //so stop timer for a safer side.
-    if (psessionEntry->gLimSpecMgmt.quietState == eLIM_QUIET_BEGIN)
+    if (pMac->lim.gLimSpecMgmt.quietState == eLIM_QUIET_BEGIN)
     {
-        MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, psessionEntry->peSessionId, eLIM_QUIET_TIMER));
+        MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, 0, eLIM_QUIET_TIMER));
         if (tx_timer_deactivate(&pMac->lim.limTimers.gLimQuietTimer) != TX_SUCCESS)
         {
-            limLog(pMac, LOGP, FL("tx_timer_deactivate failed"));
+            limLog(pMac, LOGP, FL("tx_timer_deactivate failed\n"));
             return eSIR_FAILURE;
         }
     }
-    else if (psessionEntry->gLimSpecMgmt.quietState == eLIM_QUIET_RUNNING)
+    else if (pMac->lim.gLimSpecMgmt.quietState == eLIM_QUIET_RUNNING)
     {
-        MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, psessionEntry->peSessionId, eLIM_QUIET_BSS_TIMER));
+        MTRACE(macTrace(pMac, TRACE_CODE_TIMER_DEACTIVATE, 0, eLIM_QUIET_BSS_TIMER));
         if (tx_timer_deactivate(&pMac->lim.limTimers.gLimQuietBssTimer) != TX_SUCCESS)
         {
-            limLog(pMac, LOGP, FL("tx_timer_deactivate failed"));
+            limLog(pMac, LOGP, FL("tx_timer_deactivate failed\n"));
             return eSIR_FAILURE;
         }
     }
-    psessionEntry->gLimSpecMgmt.quietState = eLIM_QUIET_INIT;
+    pMac->lim.gLimSpecMgmt.quietState = eLIM_QUIET_INIT;
 
     /* Prepare for 11h channel switch */
     limPrepareFor11hChannelSwitch(pMac, psessionEntry);
@@ -271,7 +226,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
     frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
 
-    PELOG3(limLog(pMac, LOG3, FL("Received Channel switch action frame"));)
+    PELOG3(limLog(pMac, LOG3, FL("Received Channel switch action frame\n"));)
     if (!psessionEntry->lim11hEnable)
         return;
 
@@ -279,7 +234,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
     if (eHAL_STATUS_SUCCESS != status)
     {
         limLog(pMac, LOGE,
-            FL("palAllocateMemory failed, status = %d "), status);
+            FL("palAllocateMemory failed, status = %d \n"), status);
         return;
     }
 
@@ -289,7 +244,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
     if( DOT11F_FAILED( nStatus ))
     {
         limLog( pMac, LOGE,
-            FL( "Failed to unpack and parse an 11h-CHANSW Request (0x%08x, %d bytes):"),
+            FL( "Failed to unpack and parse an 11h-CHANSW Request (0x%08x, %d bytes):\n"),
             nStatus,
             frameLen);
         palFreeMemory(pMac->hHdd, pChannelSwitchFrame);
@@ -298,7 +253,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
     else if(DOT11F_WARNED( nStatus ))
     {
         limLog( pMac, LOGW,
-            FL( "There were warnings while unpacking an 11h-CHANSW Request (0x%08x, %d bytes):"),
+            FL( "There were warnings while unpacking an 11h-CHANSW Request (0x%08x, %d bytes):\n"),
             nStatus,
             frameLen);
     }
@@ -311,7 +266,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
         if (wlan_cfgGetInt(pMac, WNI_CFG_BEACON_INTERVAL, &val) != eSIR_SUCCESS)
         {
             palFreeMemory(pMac->hHdd, pChannelSwitchFrame);
-            limLog(pMac, LOGP, FL("could not retrieve Beacon interval"));
+            limLog(pMac, LOGP, FL("could not retrieve Beacon interval\n"));
             return;
         }
         #endif// TO SUPPORT BT-AMP
@@ -321,54 +276,38 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
 
         beaconPeriod = (tANI_U16) val;
 
-        psessionEntry->gLimChannelSwitch.primaryChannel = pChannelSwitchFrame->ChanSwitchAnn.newChannel;
-        psessionEntry->gLimChannelSwitch.switchCount = pChannelSwitchFrame->ChanSwitchAnn.switchCount;
-        psessionEntry->gLimChannelSwitch.switchTimeoutValue = SYS_MS_TO_TICKS(beaconPeriod) *
-                                                         psessionEntry->gLimChannelSwitch.switchCount;
-        psessionEntry->gLimChannelSwitch.switchMode = pChannelSwitchFrame->ChanSwitchAnn.switchMode;
-#ifdef WLAN_FEATURE_11AC
-        if ( pChannelSwitchFrame->WiderBWChanSwitchAnn.present && psessionEntry->vhtCapability)
-        {
-            psessionEntry->gLimWiderBWChannelSwitch.newChanWidth = pChannelSwitchFrame->WiderBWChanSwitchAnn.newChanWidth;
-            psessionEntry->gLimWiderBWChannelSwitch.newCenterChanFreq0 = pChannelSwitchFrame->WiderBWChanSwitchAnn.newCenterChanFreq0;
-            psessionEntry->gLimWiderBWChannelSwitch.newCenterChanFreq1 = pChannelSwitchFrame->WiderBWChanSwitchAnn.newCenterChanFreq1;
-        }
-#endif
+        pMac->lim.gLimChannelSwitch.primaryChannel = pChannelSwitchFrame->ChanSwitchAnn.newChannel;
+        pMac->lim.gLimChannelSwitch.switchCount = pChannelSwitchFrame->ChanSwitchAnn.switchCount;
+        pMac->lim.gLimChannelSwitch.switchTimeoutValue = SYS_MS_TO_TICKS(beaconPeriod) *
+                                                         pMac->lim.gLimChannelSwitch.switchCount;
+        pMac->lim.gLimChannelSwitch.switchMode = pChannelSwitchFrame->ChanSwitchAnn.switchMode;
 
-       PELOG3(limLog(pMac, LOG3, FL("Rcv Chnl Swtch Frame: Timeout in %d ticks"),
-                             psessionEntry->gLimChannelSwitch.switchTimeoutValue);)
+       PELOG3(limLog(pMac, LOG3, FL("Rcv Chnl Swtch Frame: Timeout in %d ticks\n"),
+                             pMac->lim.gLimChannelSwitch.switchTimeoutValue);)
 
         /* Only primary channel switch element is present */
-        psessionEntry->gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_ONLY;
-        psessionEntry->gLimChannelSwitch.secondarySubBand = PHY_SINGLE_CHANNEL_CENTERED;
+        pMac->lim.gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_ONLY;
+        pMac->lim.gLimChannelSwitch.secondarySubBand = eANI_CB_SECONDARY_NONE;
 
-        if (psessionEntry->htSupportedChannelWidthSet)
+        if(GET_CB_ADMIN_STATE(pMac->lim.gCbState))
         {
-            if ((pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset == PHY_DOUBLE_CHANNEL_LOW_PRIMARY) ||
-                (pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset == PHY_DOUBLE_CHANNEL_HIGH_PRIMARY))
+            switch(pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset)
             {
-                psessionEntry->gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
-                psessionEntry->gLimChannelSwitch.secondarySubBand = pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset;
+                case eHT_SECONDARY_CHANNEL_OFFSET_UP:
+                    pMac->lim.gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
+                    pMac->lim.gLimChannelSwitch.secondarySubBand = eANI_CB_SECONDARY_UP;
+                    break;
+
+                case eHT_SECONDARY_CHANNEL_OFFSET_DOWN:
+                    pMac->lim.gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
+                    pMac->lim.gLimChannelSwitch.secondarySubBand = eANI_CB_SECONDARY_DOWN;
+                    break;
+
+                case eHT_SECONDARY_CHANNEL_OFFSET_NONE:
+                default:
+                    /* Nothing to be done here */
+                    break;
             }
-#ifdef WLAN_FEATURE_11AC
-            if(psessionEntry->vhtCapability && pChannelSwitchFrame->WiderBWChanSwitchAnn.present)
-            {
-                if (pChannelSwitchFrame->WiderBWChanSwitchAnn.newChanWidth == WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ)
-                {
-                    if (pChannelSwitchFrame->ExtChanSwitchAnn.present && ((pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset == PHY_DOUBLE_CHANNEL_LOW_PRIMARY) ||
-                        (pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset == PHY_DOUBLE_CHANNEL_HIGH_PRIMARY)))
-                    {
-                        psessionEntry->gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
-                        psessionEntry->gLimChannelSwitch.secondarySubBand =
-                           limGet11ACPhyCBState(pMac,
-                                                psessionEntry->gLimChannelSwitch.primaryChannel,
-                                                pChannelSwitchFrame->ExtChanSwitchAnn.secondaryChannelOffset,
-                                                pChannelSwitchFrame->WiderBWChanSwitchAnn.newCenterChanFreq0,
-                                                psessionEntry);
-                    }
-                }
-            }
-#endif
         }
 
     }
@@ -379,7 +318,7 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
 
     if (eSIR_SUCCESS != limStartChannelSwitch(pMac, psessionEntry))
     {
-        PELOG1(limLog(pMac, LOG1, FL("Could not start channel switch"));)
+        PELOG1(limLog(pMac, LOG1, FL("Could not start channel switch\n"));)
     }
 
     palFreeMemory(pMac->hHdd, pChannelSwitchFrame);
@@ -387,98 +326,148 @@ __limProcessChannelSwitchActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo
 } /*** end limProcessChannelSwitchActionFrame() ***/
 
 
-#ifdef WLAN_FEATURE_11AC
 static void
-__limProcessOperatingModeActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession psessionEntry)
+__limProcessAddTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession psessionEntry)
 {
+#if (WNI_POLARIS_FW_PRODUCT == AP)
 
-    tpSirMacMgmtHdr         pHdr;
-    tANI_U8                 *pBody;
-    tDot11fOperatingMode    *pOperatingModeframe;
-    tANI_U32                frameLen;
-    tANI_U32                nStatus;
-    eHalStatus              status;
-    tpDphHashNode           pSta;
-    tANI_U16                aid;
-    tANI_U8  operMode;
+    tSirAddtsReqInfo addts;
+    tSirRetStatus    retval;
+    tpSirMacMgmtHdr  pHdr;
+    tSirMacScheduleIE schedule;
+    tpDphHashNode    pSta;
+    tANI_U16              status;
+    tANI_U16              aid;
+    tANI_U32              frameLen;
+    tANI_U8              *pBody;
+    tANI_U8 tspecIdx = 0; //index in the sch tspec table.
 
     pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
     frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
 
-    PELOG3(limLog(pMac, LOG3, FL("Received Operating Mode action frame"));)
-    status = palAllocateMemory( pMac->hHdd, (void **)&pOperatingModeframe, sizeof(*pOperatingModeframe));
-    if (eHAL_STATUS_SUCCESS != status)
+
+    if ((psessionEntry->limSystemRole != eLIM_AP_ROLE)||(psessionEntry->limSystemRole != eLIM_BT_AMP_AP_ROLE))
     {
-        limLog(pMac, LOGE,
-            FL("palAllocateMemory failed, status = %d "), status);
+        PELOGW(limLog(pMac, LOGW, FL("AddTs request at non-AP: ignoring\n"));)
         return;
     }
 
-    /* Unpack channel switch frame */
-    nStatus = dot11fUnpackOperatingMode(pMac, pBody, frameLen, pOperatingModeframe);
-
-    if( DOT11F_FAILED( nStatus ))
-    {
-        limLog( pMac, LOGE,
-            FL( "Failed to unpack and parse an 11h-CHANSW Request (0x%08x, %d bytes):"),
-            nStatus,
-            frameLen);
-        palFreeMemory(pMac->hHdd, pOperatingModeframe);
-        return;
-    }
-    else if(DOT11F_WARNED( nStatus ))
-    {
-        limLog( pMac, LOGW,
-            FL( "There were warnings while unpacking an 11h-CHANSW Request (0x%08x, %d bytes):"),
-            nStatus,
-            frameLen);
-    }
     pSta = dphLookupHashEntry(pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable);
-    
-    operMode = pSta->vhtSupportedChannelWidthSet ? eHT_CHANNEL_WIDTH_80MHZ : pSta->htSupportedChannelWidthSet ? eHT_CHANNEL_WIDTH_40MHZ: eHT_CHANNEL_WIDTH_20MHZ;
-    if( operMode != pOperatingModeframe->OperatingMode.chanWidth)
+    if (pSta == NULL)
     {
-        limLog(pMac, LOGE, 
-            FL(" received Chanwidth %d, staIdx = %d"),
-            (pOperatingModeframe->OperatingMode.chanWidth ),
-            pSta->staIndex);
-
-        limLog(pMac, LOGE, 
-            FL(" MAC - %0x:%0x:%0x:%0x:%0x:%0x"),
-            pHdr->sa[0],
-            pHdr->sa[1],
-            pHdr->sa[2],
-            pHdr->sa[3],
-            pHdr->sa[4],
-            pHdr->sa[5]);
-
-        if(pOperatingModeframe->OperatingMode.chanWidth == eHT_CHANNEL_WIDTH_80MHZ)
-        {
-            pSta->vhtSupportedChannelWidthSet = WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ;
-            pSta->htSupportedChannelWidthSet = eHT_CHANNEL_WIDTH_40MHZ;
-        } 
-        else if(pOperatingModeframe->OperatingMode.chanWidth == eHT_CHANNEL_WIDTH_40MHZ)
-        {
-            pSta->vhtSupportedChannelWidthSet = WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
-            pSta->htSupportedChannelWidthSet = eHT_CHANNEL_WIDTH_40MHZ;
-        }
-        else if(pOperatingModeframe->OperatingMode.chanWidth == eHT_CHANNEL_WIDTH_20MHZ)
-        {
-            pSta->vhtSupportedChannelWidthSet = WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
-            pSta->htSupportedChannelWidthSet = eHT_CHANNEL_WIDTH_20MHZ;
-        }
-        limCheckVHTOpModeChange( pMac, psessionEntry, 
-                                 (pOperatingModeframe->OperatingMode.chanWidth), pSta->staIndex);\
+        PELOGE(limLog(pMac, LOGE, FL("Station context not found - ignoring AddTs\n"));)
+        return;
     }
-    palFreeMemory(pMac->hHdd, pOperatingModeframe);
-    return;
-}
+
+    PELOGW(limLog(pMac, LOGW, "AddTs Request from STA %d\n", aid);)
+    retval = sirConvertAddtsReq2Struct(pMac, pBody, frameLen, &addts);
+    if (retval != eSIR_SUCCESS)
+    {
+        PELOGW(limLog(pMac, LOGW, FL("AddTs parsing failed (error %d)\n"), retval);)
+        return;
+    }
+
+    status = eSIR_MAC_SUCCESS_STATUS;
+
+
+    if (addts.wmeTspecPresent)
+    {
+        if ((! psessionEntry->limWmeEnabled) || (! pSta->wmeEnabled))
+        {
+            PELOGW(limLog(pMac, LOGW, FL("Ignoring addts request: wme not enabled/capable\n"));)
+            status = eSIR_MAC_WME_REFUSED_STATUS;
+        }
+        else
+        {
+            PELOG2(limLog(pMac, LOG2, FL("WME Addts received\n"));)
+        }
+    }
+    else if (addts.wsmTspecPresent)
+    {
+        if ((! psessionEntry->limWsmEnabled) || (! pSta->wsmEnabled))
+        {
+            PELOGW(limLog(pMac, LOGW, FL("Ignoring addts request: wsm not enabled/capable\n"));)
+            status = eSIR_MAC_REQ_DECLINED_STATUS;
+        }
+        else
+        {
+            PELOG2(limLog(pMac, LOG2, FL("WSM Addts received\n"));)
+        }
+    }
+    else if ((! psessionEntry->limQosEnabled) || (! pSta->lleEnabled))
+    {
+        PELOGW(limLog(pMac, LOGW, FL("Ignoring addts request: qos not enabled/capable\n"));)
+        status = eSIR_MAC_REQ_DECLINED_STATUS;
+    }
+    else
+    {
+        PELOG2(limLog(pMac, LOG2, FL("11e QoS Addts received\n"));)
+    }
+
+    // for edca, if no Admit Control, ignore the request
+    if ((status == eSIR_MAC_SUCCESS_STATUS) &&
+        (addts.tspec.tsinfo.traffic.accessPolicy == SIR_MAC_ACCESSPOLICY_EDCA) &&
+        (! psessionEntry->gLimEdcaParamsBC[upToAc(addts.tspec.tsinfo.traffic.userPrio)].aci.acm))
+    {
+        limLog(pMac, LOGW, FL("AddTs with UP %d has no ACM - ignoring request\n"),
+               addts.tspec.tsinfo.traffic.userPrio);
+        status = (addts.wmeTspecPresent) ?
+                 eSIR_MAC_WME_REFUSED_STATUS : eSIR_MAC_UNSPEC_FAILURE_STATUS;
+    }
+
+    if (status != eSIR_MAC_SUCCESS_STATUS)
+    {
+        limSendAddtsRspActionFrame(pMac, pHdr->sa, status, &addts, NULL,psessionEntry);
+        return;
+    }
+
+    // try to admit the STA and send the appropriate response
+    retval = limAdmitControlAddTS(pMac, &pSta->staAddr[0], &addts, NULL, pSta->assocId, true, &schedule, &tspecIdx, psessionEntry);
+    if (retval != eSIR_SUCCESS)
+    {
+        PELOGW(limLog(pMac, LOGW, FL("Unable to admit TS\n"));)
+        status = (addts.wmeTspecPresent) ?
+                 eSIR_MAC_WME_REFUSED_STATUS : eSIR_MAC_UNSPEC_FAILURE_STATUS;
+    }
+    else if (addts.tspec.tsinfo.traffic.accessPolicy == SIR_MAC_ACCESSPOLICY_EDCA)
+    {
+        if(eSIR_SUCCESS != limSendHalMsgAddTs(pMac, pSta->staIndex, tspecIdx, addts.tspec, psessionEntry->peSessionId))
+        {
+          limLog(pMac, LOGW, FL("AddTs with UP %d failed in limSendHalMsgAddTs - ignoring request\n"),
+                 addts.tspec.tsinfo.traffic.userPrio);
+          status = (addts.wmeTspecPresent) ?
+                   eSIR_MAC_WME_REFUSED_STATUS : eSIR_MAC_UNSPEC_FAILURE_STATUS;
+
+           limAdmitControlDeleteTS(pMac, pSta->assocId, &addts.tspec.tsinfo, NULL, &tspecIdx);
+        }
+        if (status != eSIR_MAC_SUCCESS_STATUS)
+        {
+            limSendAddtsRspActionFrame(pMac, pHdr->sa, status, &addts, NULL,psessionEntry);
+            return;
+        }
+    }
+#if 0 //only EDCA is supported now.
+    else if (addts.numTclas > 1)
+    {
+        limLog(pMac, LOGE, FL("Sta %d: Too many Tclas (%d), only 1 supported\n"),
+               aid, addts.numTclas);
+        status = (addts.wmeTspecPresent) ?
+                 eSIR_MAC_WME_REFUSED_STATUS : eSIR_MAC_UNSPEC_FAILURE_STATUS;
+    }
+    else if (addts.numTclas == 1)
+    {
+        limLog(pMac, LOGW, "AddTs Request from STA %d: tsid %d, UP %d, OK!\n", aid,
+               addts.tspec.tsinfo.traffic.tsid, addts.tspec.tsinfo.traffic.userPrio);
+        status = eSIR_MAC_SUCCESS_STATUS;
+    }
 #endif
 
-static void
-__limProcessAddTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession psessionEntry)
-{
+    limLog(pMac, LOGW, "AddTs Request from STA %d: Sending AddTs Response with status %d\n",
+           aid, status);
+
+    limSendAddtsRspActionFrame(pMac, pHdr->sa, status, &addts, &schedule,psessionEntry);
+#endif
 }
 
 
@@ -505,24 +494,24 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
 
 
-    PELOGW(limLog(pMac, LOGW, "Recv AddTs Response");)
+    PELOGW(limLog(pMac, LOGW, "Recv AddTs Response\n");)
     if ((psessionEntry->limSystemRole == eLIM_AP_ROLE)||(psessionEntry->limSystemRole == eLIM_BT_AMP_AP_ROLE))
     {
-        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp recvd at AP: ignoring"));)
+        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp recvd at AP: ignoring\n"));)
         return;
     }
 
     pSta = dphLookupHashEntry(pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable);
     if (pSta == NULL)
     {
-        PELOGE(limLog(pMac, LOGE, FL("Station context not found - ignoring AddTsRsp"));)
+        PELOGE(limLog(pMac, LOGE, FL("Station context not found - ignoring AddTsRsp\n"));)
         return;
     }
 
     retval = sirConvertAddtsRsp2Struct(pMac, pBody, frameLen, &addts);
     if (retval != eSIR_SUCCESS)
     {
-        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp parsing failed (error %d)"), retval);)
+        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp parsing failed (error %d)\n"), retval);)
         return;
     }
 
@@ -531,13 +520,13 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     if (! pMac->lim.gLimAddtsSent)
     {
         // we never sent an addts request!
-        PELOGW(limLog(pMac, LOGW, "Recvd AddTsRsp but no request was ever sent - ignoring");)
+        PELOGW(limLog(pMac, LOGW, "Recvd AddTsRsp but no request was ever sent - ignoring\n");)
         return;
     }
 
     if (pMac->lim.gLimAddtsReq.req.dialogToken != addts.dialogToken)
     {
-        limLog(pMac, LOGW, "AddTsRsp: token mismatch (got %d, exp %d) - ignoring",
+        limLog(pMac, LOGW, "AddTsRsp: token mismatch (got %d, exp %d) - ignoring\n",
                addts.dialogToken, pMac->lim.gLimAddtsReq.req.dialogToken);
         return;
     }
@@ -557,17 +546,17 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
         // add the classifier - this should always succeed
         if (addts.numTclas > 1) // currently no support for multiple tclas elements
         {
-            limLog(pMac, LOGE, FL("Sta %d: Too many Tclas (%d), only 1 supported"),
+            limLog(pMac, LOGE, FL("Sta %d: Too many Tclas (%d), only 1 supported\n"),
                    aid, addts.numTclas);
             return;
         }
         else if (addts.numTclas == 1)
         {
-            limLog(pMac, LOGW, "AddTs Response from STA %d: tsid %d, UP %d, OK!", aid,
+            limLog(pMac, LOGW, "AddTs Response from STA %d: tsid %d, UP %d, OK!\n", aid,
                    addts.tspec.tsinfo.traffic.tsid, addts.tspec.tsinfo.traffic.userPrio);
         }
     }
-    limLog(pMac, LOGW, "Recv AddTsRsp: tsid %d, UP %d, status %d ",
+    limLog(pMac, LOGW, "Recv AddTsRsp: tsid %d, UP %d, status %d \n",
           addts.tspec.tsinfo.traffic.tsid, addts.tspec.tsinfo.traffic.userPrio,
           addts.status);
 
@@ -576,7 +565,7 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
 
     if (addts.status != eSIR_MAC_SUCCESS_STATUS)
     {
-        limLog(pMac, LOGW, "Recv AddTsRsp: tsid %d, UP %d, status %d ",
+        limLog(pMac, LOGW, "Recv AddTsRsp: tsid %d, UP %d, status %d \n",
               addts.tspec.tsinfo.traffic.tsid, addts.tspec.tsinfo.traffic.userPrio,
               addts.status);
         limSendSmeAddtsRsp(pMac, true, addts.status, psessionEntry, addts.tspec, 
@@ -590,7 +579,7 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
 #ifdef FEATURE_WLAN_CCX
     if (addts.tsmPresent)
     {
-        limLog(pMac, LOGW, "TSM IE Present");
+        limLog(pMac, LOGW, "TSM IE Present\n");
         psessionEntry->ccxContext.tsm.tid = addts.tspec.tsinfo.traffic.userPrio;
         vos_mem_copy(&psessionEntry->ccxContext.tsm.tsmInfo,
                                          &addts.tsmIE,sizeof(tSirMacCCXTSMIE));
@@ -642,7 +631,7 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
             limSendEdcaParams(pMac, psessionEntry->gLimEdcaParamsActive, pStaDs->bssId, eANI_BOOLEAN_FALSE);
     }
     else
-        limLog(pMac, LOGE, FL("Self entry missing in Hash Table "));
+        limLog(pMac, LOGE, FL("Self entry missing in Hash Table \n"));
 
         
     sirCopyMacAddr(peerMacAddr,psessionEntry->bssId);
@@ -652,7 +641,7 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
       addts.schedule.svcInterval = 0;
     if(eSIR_SUCCESS != limTspecAdd(pMac, pSta->staAddr, pSta->assocId, &addts.tspec,  addts.schedule.svcInterval, &tspecInfo))
     {
-        PELOGE(limLog(pMac, LOGE, FL("Adding entry in lim Tspec Table failed "));)
+        PELOGE(limLog(pMac, LOGE, FL("Adding entry in lim Tspec Table failed \n"));)
         limSendDeltsReqActionFrame(pMac, peerMacAddr, rspReqd, &addts.tspec.tsinfo, &addts.tspec,
                 psessionEntry);
         pMac->lim.gLimAddtsSent = false;
@@ -676,14 +665,14 @@ __limProcessAddTsRsp(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
             pMac->lim.gLimAddtsSent = false;
             return;
         }
-        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp received successfully(UP %d, TSID %d)"),
+        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp received successfully(UP %d, TSID %d)\n"),
            addts.tspec.tsinfo.traffic.userPrio, addts.tspec.tsinfo.traffic.tsid);)
     }
     else
     {
-        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp received successfully(UP %d, TSID %d)"),
+        PELOGW(limLog(pMac, LOGW, FL("AddTsRsp received successfully(UP %d, TSID %d)\n"),
                addts.tspec.tsinfo.traffic.userPrio, addts.tspec.tsinfo.traffic.tsid);)
-        PELOGW(limLog(pMac, LOGW, FL("no ACM: Bypass sending WDA_ADD_TS_REQ to HAL "));)
+        PELOGW(limLog(pMac, LOGW, FL("no ACM: Bypass sending WDA_ADD_TS_REQ to HAL \n"));)
         // Use the smesessionId and smetransactionId from the PE session context
         limSendSmeAddtsRsp(pMac, true, eSIR_SME_SUCCESS, psessionEntry, addts.tspec,
                 psessionEntry->smeSessionId, psessionEntry->transactionId);
@@ -719,7 +708,7 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     pSta = dphLookupHashEntry(pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable);
     if (pSta == NULL)
     {
-        PELOGE(limLog(pMac, LOGE, FL("Station context not found - ignoring DelTs"));)
+        PELOGE(limLog(pMac, LOGE, FL("Station context not found - ignoring DelTs\n"));)
         return;
     }
 
@@ -727,7 +716,7 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     retval = sirConvertDeltsReq2Struct(pMac, pBody, frameLen, &delts);
     if (retval != eSIR_SUCCESS)
     {
-        PELOGW(limLog(pMac, LOGW, FL("DelTs parsing failed (error %d)"), retval);)
+        PELOGW(limLog(pMac, LOGW, FL("DelTs parsing failed (error %d)\n"), retval);)
         return;
     }
 
@@ -735,22 +724,22 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     {
         if ((!psessionEntry->limWmeEnabled) || (! pSta->wmeEnabled))
         {
-            PELOGW(limLog(pMac, LOGW, FL("Ignoring delts request: wme not enabled/capable"));)
+            PELOGW(limLog(pMac, LOGW, FL("Ignoring delts request: wme not enabled/capable\n"));)
             return;
         }
-        PELOG2(limLog(pMac, LOG2, FL("WME Delts received"));)
+        PELOG2(limLog(pMac, LOG2, FL("WME Delts received\n"));)
     }
     else if ((psessionEntry->limQosEnabled) && pSta->lleEnabled)
         {
-        PELOG2(limLog(pMac, LOG2, FL("11e QoS Delts received"));)
+        PELOG2(limLog(pMac, LOG2, FL("11e QoS Delts received\n"));)
         }
     else if ((psessionEntry->limWsmEnabled) && pSta->wsmEnabled)
         {
-        PELOG2(limLog(pMac, LOG2, FL("WSM Delts received"));)
+        PELOG2(limLog(pMac, LOG2, FL("WSM Delts received\n"));)
         }
     else
     {
-        PELOGW(limLog(pMac, LOGW, FL("Ignoring delts request: qos not enabled/capable"));)
+        PELOGW(limLog(pMac, LOGW, FL("Ignoring delts request: qos not enabled/capable\n"));)
         return;
     }
 
@@ -760,9 +749,16 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     if ((tsinfo->traffic.accessPolicy == SIR_MAC_ACCESSPOLICY_EDCA))
     {
     
+#if(defined(ANI_PRODUCT_TYPE_AP) || defined(ANI_PRODUCT_TYPE_AP_SDK))
+        if ((psessionEntry->limSystemRole == eLIM_AP_ROLE &&
+        (! psessionEntry->gLimEdcaParamsBC[upToAc(tsinfo->traffic.userPrio)].aci.acm)) ||
+        (psessionEntry->limSystemRole != eLIM_AP_ROLE &&
+        (! psessionEntry->gLimEdcaParams[upToAc(tsinfo->traffic.userPrio)].aci.acm)))
+#else
         if ((upToAc(tsinfo->traffic.userPrio) >= MAX_NUM_AC) || (! psessionEntry->gLimEdcaParams[upToAc(tsinfo->traffic.userPrio)].aci.acm))
+#endif
         {
-            limLog(pMac, LOGW, FL("DelTs with UP %d has no AC - ignoring request"),
+            limLog(pMac, LOGW, FL("DelTs with UP %d has no AC - ignoring request\n"),
                    tsinfo->traffic.userPrio);
             return;
         }
@@ -771,7 +767,7 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     // try to delete the TS
     if (eSIR_SUCCESS != limAdmitControlDeleteTS(pMac, pSta->assocId, tsinfo, &tsStatus, &tspecIdx))
     {
-        PELOGW(limLog(pMac, LOGW, FL("Unable to Delete TS"));)
+        PELOGW(limLog(pMac, LOGW, FL("Unable to Delete TS\n"));)
         return;
     }
 
@@ -783,9 +779,9 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
     else
     {
       //send message to HAL to delete TS
-      if(eSIR_SUCCESS != limSendHalMsgDelTs(pMac, pSta->staIndex, tspecIdx, delts, psessionEntry->peSessionId))
+      if(eSIR_SUCCESS != limSendHalMsgDelTs(pMac, pSta->staIndex, tspecIdx, delts))
       {
-        limLog(pMac, LOGW, FL("DelTs with UP %d failed in limSendHalMsgDelTs - ignoring request"),
+        limLog(pMac, LOGW, FL("DelTs with UP %d failed in limSendHalMsgDelTs - ignoring request\n"),
                          tsinfo->traffic.userPrio);
          return;
       }
@@ -840,9 +836,9 @@ __limProcessDelTsReq(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession pse
             limSendEdcaParams(pMac, psessionEntry->gLimEdcaParamsActive, pStaDs->bssId, eANI_BOOLEAN_FALSE);
     }
     else
-        limLog(pMac, LOGE, FL("Self entry missing in Hash Table "));
+        limLog(pMac, LOGE, FL("Self entry missing in Hash Table \n"));
 
-    PELOG1(limLog(pMac, LOG1, FL("DeleteTS succeeded"));)
+    PELOG1(limLog(pMac, LOG1, FL("DeleteTS succeeded\n"));)
     if((psessionEntry->limSystemRole != eLIM_AP_ROLE)&&(psessionEntry->limSystemRole != eLIM_BT_AMP_AP_ROLE))
       limSendSmeDeltsInd(pMac, &delts, aid,psessionEntry);
 
@@ -885,7 +881,7 @@ __limProcessBasicMeasReq(tpAniSirGlobal pMac,
                                pMeasReqFrame,
                                peerMacAddr) != eSIR_SUCCESS)
     {
-        PELOGE(limLog(pMac, LOGE, FL("fail to send Basic Meas report "));)
+        PELOGE(limLog(pMac, LOGE, FL("fail to send Basic Meas report \n"));)
         return;
     }
 }
@@ -922,7 +918,7 @@ __limProcessCcaMeasReq(tpAniSirGlobal pMac,
                                pMeasReqFrame,
                                peerMacAddr) != eSIR_SUCCESS)
     {
-        PELOGE(limLog(pMac, LOGE, FL("fail to send CCA Meas report "));)
+        PELOGE(limLog(pMac, LOGE, FL("fail to send CCA Meas report \n"));)
         return;
     }
 }
@@ -956,7 +952,7 @@ __limProcessRpiMeasReq(tpAniSirGlobal pMac,
                                pMeasReqFrame,
                                peerMacAddr) != eSIR_SUCCESS)
     {
-        PELOGE(limLog(pMac, LOGE, FL("fail to send RPI Meas report "));)
+        PELOGE(limLog(pMac, LOGE, FL("fail to send RPI Meas report \n"));)
         return;
     }
 }
@@ -994,14 +990,14 @@ __limProcessMeasurementRequestFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
         palAllocateMemory( pMac->hHdd, (void **)&pMeasReqFrame, sizeof( tSirMacMeasReqActionFrame ) ) )
     {
         limLog(pMac, LOGE,
-            FL("limProcessMeasurementRequestFrame: palAllocateMemory failed "));
+            FL("limProcessMeasurementRequestFrame: palAllocateMemory failed \n"));
         return;
     }
 
     if (sirConvertMeasReqFrame2Struct(pMac, pBody, pMeasReqFrame, frameLen) !=
         eSIR_SUCCESS)
     {
-        PELOGW(limLog(pMac, LOGW, FL("Rcv invalid Measurement Request Action Frame "));)
+        PELOGW(limLog(pMac, LOGW, FL("Rcv invalid Measurement Request Action Frame \n"));)
         return;
     }
 
@@ -1021,7 +1017,7 @@ __limProcessMeasurementRequestFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
             break;
 
         default:
-            PELOG1(limLog(pMac, LOG1, FL("Unknown Measurement Type %d "),
+            PELOG1(limLog(pMac, LOG1, FL("Unknown Measurement Type %d \n"),
                    pMeasReqFrame->measReqIE.measType);)
             break;
     }
@@ -1059,14 +1055,14 @@ __limProcessTpcRequestFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
     if ( eHAL_STATUS_SUCCESS !=
         palAllocateMemory( pMac->hHdd, (void **)&pTpcReqFrame, sizeof( tSirMacTpcReqActionFrame ) ) )
     {
-        PELOGE(limLog(pMac, LOGE, FL("palAllocateMemory failed "));)
+        PELOGE(limLog(pMac, LOGE, FL("palAllocateMemory failed \n"));)
         return;
     }
 
     if (sirConvertTpcReqFrame2Struct(pMac, pBody, pTpcReqFrame, frameLen) !=
         eSIR_SUCCESS)
     {
-        PELOGW(limLog(pMac, LOGW, FL("Rcv invalid TPC Req Action Frame "));)
+        PELOGW(limLog(pMac, LOGW, FL("Rcv invalid TPC Req Action Frame \n"));)
         return;
     }
 
@@ -1074,7 +1070,7 @@ __limProcessTpcRequestFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo)
                               pTpcReqFrame,
                               pHdr->sa) != eSIR_SUCCESS)
     {
-        PELOGE(limLog(pMac, LOGE, FL("fail to send TPC Report Frame. "));)
+        PELOGE(limLog(pMac, LOGE, FL("fail to send TPC Report Frame. \n"));)
         return;
     }
 }
@@ -1120,7 +1116,7 @@ __limValidateAddBAParameterSet( tpAniSirGlobal pMac,
         (LIM_ADDBA_REQ == reqType))
   {
       //There is already BA session setup for STA/TID.
-      limLog( pMac, LOGE,
+      limLog( pMac, LOGW,
           FL( "AddBAReq rcvd when there is already a session for this StaId = %d, tid = %d\n " ),
           pSta->staIndex, baParameterSet.tid);
       limPrintMacAddr( pMac, pSta->staAddr, LOGW );
@@ -1161,11 +1157,11 @@ tSirMacStatusCodes statusCode = eSIR_MAC_STA_BLK_ACK_NOT_SUPPORTED_STATUS;
       statusCode = eSIR_MAC_SUCCESS_STATUS;
 
       limLog( pMac, LOGW,
-          FL("Valid DELBA Ind received. Time to send WDA_DELBA_IND to HAL..."));
+          FL("Valid DELBA Ind received. Time to send WDA_DELBA_IND to HAL...\n"));
     }
     else
       limLog( pMac, LOGW,
-          FL("Received an INVALID DELBA Ind for TID %d..."),
+          FL("Received an INVALID DELBA Ind for TID %d...\n"),
           baParameterSet.tid );
 
   return statusCode;
@@ -1191,7 +1187,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     tpDphHashNode pSta;
     tSirMacStatusCodes status = eSIR_MAC_SUCCESS_STATUS;
     tANI_U16 aid;
-    tANI_U32 frameLen, nStatus,val;
+    tANI_U32 frameLen, nStatus;
     tANI_U8 *pBody;
     tANI_U8 delBAFlag =0;
 
@@ -1204,7 +1200,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     if( DOT11F_FAILED( nStatus ))
     {
         limLog( pMac, LOGE,
-            FL("Failed to unpack and parse an ADDBA Request (0x%08x, %d bytes):"),
+            FL("Failed to unpack and parse an ADDBA Request (0x%08x, %d bytes):\n"),
             nStatus,
             frameLen );
 
@@ -1216,7 +1212,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     else if ( DOT11F_WARNED( nStatus ) )
     {
         limLog( pMac, LOGW,
-            FL( "There were warnings while unpacking an ADDBA Request (0x%08x, %d bytes):"),
+            FL( "There were warnings while unpacking an ADDBA Request (0x%08x, %d bytes):\n"),
             nStatus,
             frameLen );
 
@@ -1227,7 +1223,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     if( pSta == NULL )
     {
         limLog( pMac, LOGE,
-            FL( "STA context not found - ignoring ADDBA from " ));
+            FL( "STA context not found - ignoring ADDBA from \n" ));
         limPrintMacAddr( pMac, pHdr->sa, LOGW );
 
         // FIXME - Should we do this?
@@ -1236,7 +1232,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     }
 
     limLog( pMac, LOGW,
-      FL( "ADDBA Req from STA with AID %d, tid = %d" ),
+      FL( "ADDBA Req from STA with AID %d, tid = %d\n" ),
       aid, frmAddBAReq.AddBAParameterSet.tid);
 
 #ifdef WLAN_SOFTAP_VSTA_FEATURE
@@ -1272,7 +1268,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
 
   // Check if the ADD BA Declined configuration is Disabled
     if ((pMac->lim.gAddBA_Declined & ( 1 << frmAddBAReq.AddBAParameterSet.tid ) )) {
-        limLog( pMac, LOGE, FL( "Declined the ADDBA Req for the TID %d  " ),
+        limLog( pMac, LOGE, FL( "Declined the ADDBA Req for the TID %d  \n" ),
                         frmAddBAReq.AddBAParameterSet.tid);
         status = eSIR_MAC_REQ_DECLINED_STATUS;
         goto returnAfterError;
@@ -1287,25 +1283,6 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
   // Change the Block Ack state of this STA to wait for
   // ADDBA Rsp from HAL
   LIM_SET_STA_BA_STATE(pSta, frmAddBAReq.AddBAParameterSet.tid, eLIM_BA_STATE_WT_ADD_RSP);
-
-  if (wlan_cfgGetInt(pMac, WNI_CFG_NUM_BUFF_ADVERT , &val) != eSIR_SUCCESS)
-  {
-        limLog(pMac, LOGP, FL("Unable to get WNI_CFG_NUM_BUFF_ADVERT"));
-        return ;
-  }
-
-
-  if (frmAddBAReq.AddBAParameterSet.bufferSize)
-  {
-      frmAddBAReq.AddBAParameterSet.bufferSize =
-            VOS_MIN(val, frmAddBAReq.AddBAParameterSet.bufferSize);
-  }
-  else
-  {
-      frmAddBAReq.AddBAParameterSet.bufferSize = val;
-  }
-  limLog( pMac, LOGE, FL( "ADDBAREQ NUMBUFF %d" ),
-                        frmAddBAReq.AddBAParameterSet.bufferSize);
 
   if( eSIR_SUCCESS != limPostMsgAddBAReq( pMac,
         pSta,
@@ -1374,7 +1351,7 @@ tANI_U8 *pBody;
   if( pSta == NULL )
   {
     limLog( pMac, LOGE,
-        FL( "STA context not found - ignoring ADDBA from " ));
+        FL( "STA context not found - ignoring ADDBA from \n" ));
     limPrintMacAddr( pMac, pHdr->sa, LOGW );
     return;
   }
@@ -1393,7 +1370,7 @@ tANI_U8 *pBody;
   if( DOT11F_FAILED( nStatus ))
   {
     limLog( pMac, LOGE,
-        FL( "Failed to unpack and parse an ADDBA Response (0x%08x, %d bytes):"),
+        FL( "Failed to unpack and parse an ADDBA Response (0x%08x, %d bytes):\n"),
         nStatus,
         frameLen );
 
@@ -1403,15 +1380,15 @@ tANI_U8 *pBody;
   else if ( DOT11F_WARNED( nStatus ) )
   {
     limLog( pMac, LOGW,
-        FL( "There were warnings while unpacking an ADDBA Response (0x%08x, %d bytes):"),
+        FL( "There were warnings while unpacking an ADDBA Response (0x%08x, %d bytes):\n"),
         nStatus,
         frameLen );
 
     PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
   }
 
-  limLog( pMac, LOGE,
-      FL( "ADDBA Rsp from STA with AID %d, tid = %d, status = %d" ),
+  limLog( pMac, LOGW,
+      FL( "ADDBA Rsp from STA with AID %d, tid = %d, status = %d\n" ),
       aid, frmAddBARsp.AddBAParameterSet.tid, frmAddBARsp.Status.status);
 
   //if there is no matchin dialougue token then ignore the response.
@@ -1419,7 +1396,7 @@ tANI_U8 *pBody;
   if(eSIR_SUCCESS != limSearchAndDeleteDialogueToken(pMac, frmAddBARsp.DialogToken.token,
         pSta->assocId, frmAddBARsp.AddBAParameterSet.tid))
   {
-      PELOGW(limLog(pMac, LOGE, FL("dialogueToken in received addBARsp did not match with outstanding requests"));)
+      PELOGW(limLog(pMac, LOGW, FL("dialogueToken in received addBARsp did not match with outstanding requests\n"));)
       return;
   }
 
@@ -1523,19 +1500,19 @@ tANI_U8 *pBody;
   pSta = dphLookupHashEntry( pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable );
   if( pSta == NULL )
   {
-    limLog( pMac, LOGE, FL( "STA context not found - ignoring DELBA from "));
+    limLog( pMac, LOGE, FL( "STA context not found - ignoring DELBA from \n"));
     limPrintMacAddr( pMac, pHdr->sa, LOGW );
     return;
   }
 
-  limLog( pMac, LOG1, FL( "DELBA Ind from STA with AID %d" ), aid );
+  limLog( pMac, LOG1, FL( "DELBA Ind from STA with AID %d\n" ), aid );
 
   // Unpack the received frame
   nStatus = dot11fUnpackDelBAInd( pMac, pBody, frameLen, &frmDelBAInd );
   if( DOT11F_FAILED( nStatus ))
   {
     limLog( pMac, LOGE,
-        FL( "Failed to unpack and parse a DELBA Indication (0x%08x, %d bytes):"),
+        FL( "Failed to unpack and parse a DELBA Indication (0x%08x, %d bytes):\n"),
         nStatus,
         frameLen );
 
@@ -1545,7 +1522,7 @@ tANI_U8 *pBody;
   else if ( DOT11F_WARNED( nStatus ) )
   {
     limLog( pMac, LOGW,
-        FL( "There were warnings while unpacking a DELBA Indication (0x%08x, %d bytes):"),
+        FL( "There were warnings while unpacking a DELBA Indication (0x%08x, %d bytes):\n"),
         nStatus,
         frameLen );
 
@@ -1553,7 +1530,7 @@ tANI_U8 *pBody;
   }
 
   limLog( pMac, LOGW,
-      FL( "Received DELBA for TID %d, Reason code %d" ),
+      FL( "Received DELBA for TID %d, Reason code %d\n" ),
       frmDelBAInd.DelBAParameterSet.tid,
       frmDelBAInd.Reason.code );
 
@@ -1575,7 +1552,7 @@ tANI_U8 *pBody;
         (tANI_U8) frmDelBAInd.DelBAParameterSet.tid,
         (eBA_RECIPIENT == frmDelBAInd.DelBAParameterSet.initiator)?
           eBA_INITIATOR: eBA_RECIPIENT,psessionEntry))
-    limLog( pMac, LOGE, FL( "Posting WDA_DELBA_IND to HAL failed "));
+    limLog( pMac, LOGE, FL( "Posting WDA_DELBA_IND to HAL failed \n"));
 
   return;
 
@@ -1600,7 +1577,7 @@ __limProcessSMPowerSaveUpdate(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpPES
 
         pSta = dphLookupHashEntry(pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable );
         if( pSta == NULL ) {
-            limLog( pMac, LOGE,FL( "STA context not found - ignoring UpdateSM PSave Mode from " ));
+            limLog( pMac, LOGE,FL( "STA context not found - ignoring UpdateSM PSave Mode from \n" ));
             limPrintMacAddr( pMac, pHdr->sa, LOGW );
             return;
         }
@@ -1609,12 +1586,12 @@ __limProcessSMPowerSaveUpdate(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpPES
         nStatus = dot11fUnpackSMPowerSave( pMac, pBody, frameLen, &frmSMPower);
 
         if( DOT11F_FAILED( nStatus )) {
-            limLog( pMac, LOGE, FL( "Failed to unpack and parse a Update SM Power (0x%08x, %d bytes):"),
+            limLog( pMac, LOGE, FL( "Failed to unpack and parse a Update SM Power (0x%08x, %d bytes):\n"),
                                                     nStatus, frameLen );
             PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
             return;
         }else if ( DOT11F_WARNED( nStatus ) ) {
-            limLog(pMac, LOGW, FL( "There were warnings while unpacking a SMPower Save update (0x%08x, %d bytes):"),
+            limLog(pMac, LOGW, FL( "There were warnings while unpacking a SMPower Save update (0x%08x, %d bytes):\n"),
                                 nStatus, frameLen );
             PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
         }
@@ -1671,12 +1648,12 @@ __limProcessRadioMeasureRequest( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tp
      nStatus = dot11fUnpackRadioMeasurementRequest( pMac, pBody, frameLen, &frm );
 
      if( DOT11F_FAILED( nStatus )) {
-          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Radio Measure request (0x%08x, %d bytes):"),
+          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Radio Measure request (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
                return;
      }else if ( DOT11F_WARNED( nStatus ) ) {
-          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Radio Measure request (0x%08x, %d bytes):"),
+          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Radio Measure request (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
      }
@@ -1707,12 +1684,12 @@ __limProcessLinkMeasurementReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpP
      nStatus = dot11fUnpackLinkMeasurementRequest( pMac, pBody, frameLen, &frm );
 
      if( DOT11F_FAILED( nStatus )) {
-          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Link Measure request (0x%08x, %d bytes):"),
+          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Link Measure request (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
                return;
      }else if ( DOT11F_WARNED( nStatus ) ) {
-          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Link Measure request (0x%08x, %d bytes):"),
+          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Link Measure request (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
      }
@@ -1727,7 +1704,7 @@ static void
 __limProcessNeighborReport( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpPESession psessionEntry )
 {
      tpSirMacMgmtHdr               pHdr;
-     tDot11fNeighborReportResponse *pFrm;
+     tDot11fNeighborReportResponse frm;
      tANI_U32                      frameLen, nStatus;
      tANI_U8                       *pBody;
 
@@ -1735,45 +1712,35 @@ __limProcessNeighborReport( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpPESes
      pBody = WDA_GET_RX_MPDU_DATA( pRxPacketInfo );
      frameLen = WDA_GET_RX_PAYLOAD_LEN( pRxPacketInfo );
 
-     if(eHAL_STATUS_SUCCESS != palAllocateMemory(pMac->hHdd, 
-                                                 (void **)&pFrm, sizeof(tDot11fNeighborReportResponse)))
-     {
-         limLog(pMac, LOGE, FL("Unable to PAL allocate memory in __limProcessNeighborReport") );
-         return;
-     }
-
      if( psessionEntry == NULL )
      {
-          palFreeMemory(pMac->hHdd, pFrm);
           return;
      }
 
      /**Unpack the received frame */
-     nStatus = dot11fUnpackNeighborReportResponse( pMac, pBody, frameLen,pFrm );
+     nStatus = dot11fUnpackNeighborReportResponse( pMac, pBody, frameLen, &frm );
 
      if( DOT11F_FAILED( nStatus )) {
-          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Neighbor report response (0x%08x, %d bytes):"),
+          limLog( pMac, LOGE, FL( "Failed to unpack and parse a Neighbor report response (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
-          palFreeMemory(pMac->hHdd, pFrm);
-          return;
+               return;
      }else if ( DOT11F_WARNED( nStatus ) ) {
-          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Neighbor report response (0x%08x, %d bytes):"),
+          limLog(pMac, LOGW, FL( "There were warnings while unpacking a Neighbor report response (0x%08x, %d bytes):\n"),
                     nStatus, frameLen );
           PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
      }
 
      //Call rrm function to handle the request.
-     rrmProcessNeighborReportResponse( pMac, pFrm, psessionEntry ); 
-     
-     palFreeMemory(pMac->hHdd, pFrm);
+     rrmProcessNeighborReportResponse( pMac, &frm, psessionEntry ); 
+
 }
 
 #endif
 
 #ifdef WLAN_FEATURE_11W
 /**
- * limProcessSAQueryRequestActionFrame
+ * limProcessActionFrame
  *
  *FUNCTION:
  * This function is called by limProcessActionFrame() upon
@@ -1786,16 +1753,14 @@ __limProcessNeighborReport( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo ,tpPESes
  *NOTE:
  *
  * @param  pMac - Pointer to Global MAC structure
- * @param  *pRxPacketInfo - Handle to the Rx packet info
- * @param  psessionEntry - PE session entry
- *
+ * @param  *pBd - A pointer to Buffer descriptor + associated PDUs
  * @return None
  */
-static void __limProcessSAQueryRequestActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession psessionEntry)
+static void __limProcessSAQueryRequestActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession psessionEntry)
 {
     tpSirMacMgmtHdr     pHdr;
     tANI_U8             *pBody;
-    tANI_U8             transId[2];
+    tANI_U16            transId = 0;           
 
     /* Prima  --- Below Macro not available in prima 
        pHdr = SIR_MAC_BD_TO_MPDUHEADER(pBd);
@@ -1804,60 +1769,25 @@ static void __limProcessSAQueryRequestActionFrame(tpAniSirGlobal pMac, tANI_U8 *
     pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
     pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
 
-    /* If this is an unprotected SA Query Request, then ignore it. */
-    if (pHdr->fc.wep == 0)
-        return;
-
     /*Extract 11w trsansId from SA query request action frame
       In SA query response action frame we will send same transId
       In SA query request action frame:
       Category       : 1 byte
       Action         : 1 byte
-      Transaction ID : 2 bytes */
-    vos_mem_copy( &transId[0], &pBody[2], 2 );
+      Transaction ID : 2 bbytes */
 
+    transId = pBody[2];
+    transId = transId << 8;
+    transId |= pBody[3];
+    
     //Send 11w SA query response action frame
     if (limSendSaQueryResponseFrame(pMac,
                               transId,
                               pHdr->sa,psessionEntry) != eSIR_SUCCESS)
     {
-        PELOGE(limLog(pMac, LOGE, FL("fail to send SA query response action frame."));)
+        PELOGE(limLog(pMac, LOGE, FL("fail to send SA query response action frame. \n"));)
         return;
     }
-}
-
-/**
- * __limProcessSAQueryResponseActionFrame
- *
- *FUNCTION:
- * This function is called by limProcessActionFrame() upon
- * SA query response Action frame reception.
- *
- *LOGIC:
- *
- *ASSUMPTIONS:
- *
- *NOTE:
- *
- * @param  pMac - Pointer to Global MAC structure
- * @param  *pRxPacketInfo - Handle to the Rx packet info
- * @param  psessionEntry - PE session entry
- * @return None
- */
-static void __limProcessSAQueryResponseActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tpPESession psessionEntry)
-{
-    tpSirMacMgmtHdr     pHdr;
-    tANI_U32            frameLen;
-
-    pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
-    frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
-    VOS_TRACE(VOS_MODULE_ID_PE, VOS_TRACE_LEVEL_INFO,
-                         ("SA Query Response received...")) ;
-    /* Forward to the SME to HDD to wpa_supplicant */
-    // type is ACTION
-    limSendSmeMgmtFrameInd(pMac, pHdr->fc.subType,
-       (tANI_U8*)pHdr, frameLen + sizeof(tSirMacMgmtHdr), 0,
-       WDA_GET_RX_CH( pRxPacketInfo ), psessionEntry, 0);
 }
 
 #endif
@@ -1885,21 +1815,11 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
 {
     tANI_U8 *pBody = WDA_GET_RX_MPDU_DATA(pRxPacketInfo);
     tpSirMacActionFrameHdr pActionHdr = (tpSirMacActionFrameHdr) pBody;
-#ifdef WLAN_FEATURE_11W
-    tpSirMacMgmtHdr pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
-#endif
 
+   
     switch (pActionHdr->category)
     {
         case SIR_MAC_ACTION_QOS_MGMT:
-#ifdef WLAN_FEATURE_11W
-            if ((psessionEntry->limRmfEnabled) && (pHdr->fc.wep == 0))
-            {
-                PELOGE(limLog(pMac, LOGE, FL("Dropping unprotected Action category %d frame "
-                                             "since RMF is enabled."), pActionHdr->category);)
-                break;
-            }
-#endif
             if (psessionEntry->limQosEnabled)
             {
                 switch (pActionHdr->actionID)
@@ -1917,7 +1837,7 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
                         break;
 
                     default:
-                        PELOGE(limLog(pMac, LOGE, FL("Qos action %d not handled"), pActionHdr->actionID);)
+                        PELOGE(limLog(pMac, LOGE, FL("Qos action %d not handled\n"), pActionHdr->actionID);)
                         break;
                 }
                 break ;
@@ -1926,14 +1846,6 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
            break;
 
         case SIR_MAC_ACTION_SPECTRUM_MGMT:
-#ifdef WLAN_FEATURE_11W
-            if ((psessionEntry->limRmfEnabled) && (pHdr->fc.wep == 0))
-            {
-                PELOGE(limLog(pMac, LOGE, FL("Dropping unprotected Action category %d frame "
-                                             "since RMF is enabled."), pActionHdr->category);)
-                break;
-            }
-#endif
             switch (pActionHdr->actionID)
             {
 #ifdef ANI_SUPPORT_11H
@@ -1963,7 +1875,7 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
                     }
                     break;
                 default:
-                    PELOGE(limLog(pMac, LOGE, FL("Spectrum mgmt action id %d not handled"), pActionHdr->actionID);)
+                    PELOGE(limLog(pMac, LOGE, FL("Spectrum mgmt action id %d not handled\n"), pActionHdr->actionID);)
                     break;
             }
             break;
@@ -1971,7 +1883,7 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
         case SIR_MAC_ACTION_WME:
             if (! psessionEntry->limWmeEnabled)
             {
-                limLog(pMac, LOGW, FL("WME mode disabled - dropping action frame %d"),
+                limLog(pMac, LOGW, FL("WME mode disabled - dropping action frame %d\n"),
                        pActionHdr->actionID);
                 break;
             }
@@ -1990,21 +1902,13 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
                     break;
 
                 default:
-                    PELOGE(limLog(pMac, LOGE, FL("WME action %d not handled"), pActionHdr->actionID);)
+                    PELOGE(limLog(pMac, LOGE, FL("WME action %d not handled\n"), pActionHdr->actionID);)
                     break;
             }
             break;
 
         case SIR_MAC_ACTION_BLKACK:
             // Determine the "type" of BA Action Frame
-#ifdef WLAN_FEATURE_11W
-            if ((psessionEntry->limRmfEnabled) && (pHdr->fc.wep == 0))
-            {
-                PELOGE(limLog(pMac, LOGE, FL("Dropping unprotected Action category %d frame "
-                                             "since RMF is enabled."), pActionHdr->category);)
-                break;
-            }
-#endif
             switch(pActionHdr->actionID)
             {
               case SIR_MAC_BLKACK_ADD_REQ:
@@ -2031,21 +1935,13 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
             __limProcessSMPowerSaveUpdate(pMac, (tANI_U8 *) pRxPacketInfo,psessionEntry);
             break;
         default:
-            PELOGE(limLog(pMac, LOGE, FL("Action ID %d not handled in HT Action category"), pActionHdr->actionID);)
+            PELOGE(limLog(pMac, LOGE, FL("Action ID %d not handled in HT Action category\n"), pActionHdr->actionID);)
             break;
         }
         break;
 
 #if defined WLAN_FEATURE_VOWIFI
     case SIR_MAC_ACTION_RRM:
-#ifdef WLAN_FEATURE_11W
-            if ((psessionEntry->limRmfEnabled) && (pHdr->fc.wep == 0))
-            {
-                PELOGE(limLog(pMac, LOGE, FL("Dropping unprotected Action category %d frame "
-                                             "since RMF is enabled."), pActionHdr->category);)
-                break;
-            }
-#endif
         if( pMac->rrm.rrmPEContext.rrmEnable )
         {
             switch(pActionHdr->actionID) {
@@ -2059,7 +1955,7 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
                     __limProcessNeighborReport( pMac, (tANI_U8*) pRxPacketInfo, psessionEntry );
                     break;
                 default:
-                    PELOGE( limLog( pMac, LOGE, FL("Action ID %d not handled in RRM"), pActionHdr->actionID);)
+                    PELOGE( limLog( pMac, LOGE, FL("Action ID %d not handled in RRM\n"), pActionHdr->actionID);)
                     break;
 
             }
@@ -2067,48 +1963,11 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
         else
         {
             // Else we will just ignore the RRM messages.
-            PELOGE( limLog( pMac, LOGE, FL("RRM Action frame ignored as RRM is disabled in cfg"));)
+            PELOGE( limLog( pMac, LOGE, FL("RRM Action frame ignored as RRM is disabled in cfg\n"));)
         }
         break;
 #endif
-#if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
-        case SIR_MAC_ACTION_VENDOR_SPECIFIC_CATEGORY:
-            {
-              tpSirMacVendorSpecificFrameHdr pVendorSpecific = (tpSirMacVendorSpecificFrameHdr) pActionHdr;
-              tpSirMacMgmtHdr     pHdr;
-              tANI_U32            frameLen;
-              tANI_U8 Oui[] = { 0x00, 0x00, 0xf0 };
-
-              pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
-              frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
-
-              //Check if it is a vendor specific action frame.
-              if ((eLIM_STA_ROLE == psessionEntry->limSystemRole) &&
-                  (VOS_TRUE == palEqualMemory(pMac->hHdd, psessionEntry->selfMacAddr,
-                    &pHdr->da[0], sizeof(tSirMacAddr))) &&
-                  IS_WES_MODE_ENABLED(pMac) && palEqualMemory( pMac->hHdd, pVendorSpecific->Oui, Oui, 3))
-              {
-                  PELOGE( limLog( pMac, LOGW, FL("Received Vendor specific action frame, OUI %x %x %x"),
-                         pVendorSpecific->Oui[0], pVendorSpecific->Oui[1], pVendorSpecific->Oui[2]);)
-                 /* Forward to the SME to HDD to wpa_supplicant */
-                 // type is ACTION
-                 limSendSmeMgmtFrameInd(pMac, pHdr->fc.subType,
-                    (tANI_U8*)pHdr, frameLen + sizeof(tSirMacMgmtHdr), 0,
-                    WDA_GET_RX_CH( pRxPacketInfo ), psessionEntry, 0);
-              }
-              else
-              {
-                 limLog( pMac, LOGE, FL("Dropping the vendor specific action frame because of( "
-                                        "WES Mode not enabled (WESMODE = %d) or OUI mismatch (%02x %02x %02x) or "
-                                        "not received with SelfSta Mac address) system role = %d"),
-                                        IS_WES_MODE_ENABLED(pMac),
-                                        pVendorSpecific->Oui[0], pVendorSpecific->Oui[1],
-                                        pVendorSpecific->Oui[2],
-                                        psessionEntry->limSystemRole );
-              }
-           }
-           break;
-#endif
+#if defined WLAN_FEATURE_P2P
     case SIR_MAC_ACTION_PUBLIC_USAGE:
         switch(pActionHdr->actionID) {
         case SIR_MAC_ACTION_VENDOR_SPECIFIC:
@@ -2128,90 +1987,39 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
                  // type is ACTION
                  limSendSmeMgmtFrameInd(pMac, pHdr->fc.subType, 
                     (tANI_U8*)pHdr, frameLen + sizeof(tSirMacMgmtHdr), 0, 
-                    WDA_GET_RX_CH( pRxPacketInfo ), psessionEntry, 0);
+                    WDA_GET_RX_CH( pRxPacketInfo ), psessionEntry);
               }
               else
               {
-                 limLog( pMac, LOGE, FL("Unhandled public action frame (Vendor specific). OUI %x %x %x %x"),
+                 limLog( pMac, LOGE, FL("Unhandled public action frame (Vendor specific). OUI %x %x %x %x\n"),
                       pPubAction->Oui[0], pPubAction->Oui[1], pPubAction->Oui[2], pPubAction->Oui[3] );
               }
            }
             break;
-#ifdef FEATURE_WLAN_TDLS
-           case SIR_MAC_TDLS_DIS_RSP:
-           {
-#ifdef FEATURE_WLAN_TDLS_INTERNAL
-               //LIM_LOG_TDLS(printk("Public Action TDLS Discovery RSP ..")) ;
-               limProcessTdlsPublicActionFrame(pMac, (tANI_U32*)pRxPacketInfo, psessionEntry) ;
-#else
-               tpSirMacMgmtHdr     pHdr;
-               tANI_U32            frameLen;
-               tANI_S8             rssi;
-
-               pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
-               frameLen = WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo);
-               rssi = WDA_GET_RX_RSSI_DB(pRxPacketInfo);
-               VOS_TRACE(VOS_MODULE_ID_PE, VOS_TRACE_LEVEL_INFO, 
-                                    ("Public Action TDLS Discovery RSP ..")) ;
-               limSendSmeMgmtFrameInd(pMac, pHdr->fc.subType, 
-                  (tANI_U8*)pHdr, frameLen + sizeof(tSirMacMgmtHdr), 0, 
-                  WDA_GET_RX_CH( pRxPacketInfo ), psessionEntry, rssi);
-#endif
-           }
-               break;
-#endif
 
         default:
-            PELOGE(limLog(pMac, LOGE, FL("Unhandled public action frame -- %x "), pActionHdr->actionID);)
+            PELOGE(limLog(pMac, LOGE, FL("Unhandled public action frame -- %x \n"), pActionHdr->actionID);)
             break;
         }
         break;
+#endif
 
 #ifdef WLAN_FEATURE_11W
     case SIR_MAC_ACTION_SA_QUERY:
     {
-        PELOGE(limLog(pMac, LOG1, FL("SA Query Action category %d action %d."), pActionHdr->category, pActionHdr->actionID);)
-        switch (pActionHdr->actionID)
-        {
-            case  SIR_MAC_SA_QUERY_REQ:
-                /**11w SA query request action frame received**/
-                /* Respond directly to the incoming request in LIM */
-                __limProcessSAQueryRequestActionFrame(pMac,(tANI_U8*) pRxPacketInfo, psessionEntry );
-                break;
-            case  SIR_MAC_SA_QUERY_RSP:
-                /**11w SA query response action frame received**/
-                /* Forward to the SME to HDD to wpa_supplicant */
-                __limProcessSAQueryResponseActionFrame(pMac,(tANI_U8*) pRxPacketInfo, psessionEntry );
-                break;
-            default:
-                break;
-        }
+        /**11w SA query request action frame received**/
+        __limProcessSAQueryRequestActionFrame(pMac,(tANI_U8*) pRxPacketInfo, psessionEntry );
         break;
      }
 #endif
-#ifdef WLAN_FEATURE_11AC
-    case SIR_MAC_ACTION_VHT:
-    {
-        if (psessionEntry->vhtCapability)
-        {
-            switch (pActionHdr->actionID)
-            {
-                case  SIR_MAC_VHT_OPMODE_NOTIFICATION:
-                    __limProcessOperatingModeActionFrame(pMac,pRxPacketInfo,psessionEntry);                
-                break;
-                default:
-                break;
-            }
-        }
-        break;
-    }
-#endif
+
     default:
-       PELOGE(limLog(pMac, LOGE, FL("Action category %d not handled"), pActionHdr->category);)
+       PELOGE(limLog(pMac, LOGE, FL("Action category %d not handled\n"), pActionHdr->category);)
        break;
     }
 }
 
+#if defined WLAN_FEATURE_P2P
 /**
  * limProcessActionFrameNoSession
  *
@@ -2238,7 +2046,7 @@ limProcessActionFrameNoSession(tpAniSirGlobal pMac, tANI_U8 *pBd)
    tANI_U8 *pBody = WDA_GET_RX_MPDU_DATA(pBd);
    tpSirMacVendorSpecificPublicActionFrameHdr pActionHdr = (tpSirMacVendorSpecificPublicActionFrameHdr) pBody;
 
-   limLog( pMac, LOG1, "Received a Action frame -- no session");
+   limLog( pMac, LOGE, "Received a Action frame -- no session");
 
    switch ( pActionHdr->category )
    {
@@ -2260,23 +2068,24 @@ limProcessActionFrameNoSession(tpAniSirGlobal pMac, tANI_U8 *pBd)
                   // type is ACTION
                   limSendSmeMgmtFrameInd(pMac, pHdr->fc.subType, 
                       (tANI_U8*)pHdr, frameLen + sizeof(tSirMacMgmtHdr), 0,
-                      WDA_GET_RX_CH( pBd ), NULL, 0);
+                      WDA_GET_RX_CH( pBd ), NULL);
                 }
                 else
                 {
-                  limLog( pMac, LOGE, FL("Unhandled public action frame (Vendor specific). OUI %x %x %x %x"),
+                  limLog( pMac, LOGE, FL("Unhandled public action frame (Vendor specific). OUI %x %x %x %x\n"),
                       pActionHdr->Oui[0], pActionHdr->Oui[1], pActionHdr->Oui[2], pActionHdr->Oui[3] );
                 }
               }
                break;
             default:
-               PELOGE(limLog(pMac, LOGE, FL("Unhandled public action frame -- %x "), pActionHdr->actionID);)
+               PELOGE(limLog(pMac, LOGE, FL("Unhandled public action frame -- %x \n"), pActionHdr->actionID);)
                   break;
          }
          break;
       default:
-         PELOGE(limLog(pMac, LOG1, FL("Unhandled action frame without session -- %x "), pActionHdr->category);)
+         PELOGE(limLog(pMac, LOGE, FL("Unhandled action frame without session -- %x \n"), pActionHdr->category);)
             break;
 
    }
 }
+#endif
