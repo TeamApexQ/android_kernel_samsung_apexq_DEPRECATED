@@ -1,4 +1,4 @@
-MODNAME := wlan
+MODNAME := prima_wlan
 WLAN_ROOT := drivers/staging/prima
 
 #Whether to build debug version
