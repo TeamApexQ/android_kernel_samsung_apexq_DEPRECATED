@@ -594,6 +594,9 @@ tBssSystemRole wdaGetGlobalSystemRole(tpAniSirGlobal pMac);
 /* WDA_GET_RX_CH *************************************************************/
 #  define WDA_GET_RX_CH(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->rxChannel)
 
+/* WDA_GET_RX_RFBAND *********************************************************/
+#  define WDA_GET_RX_RFBAND(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->rfBand)
+
 /* WDA_GET_RX_DPUSIG *********************************************************/
 #  define WDA_GET_RX_DPUSIG(pRxMeta)  (((WDI_DS_RxMetaInfoType*)(pRxMeta))->dpuSig)
 
@@ -1006,6 +1009,8 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_DEL_STA_SELF_REQ           SIR_HAL_DEL_STA_SELF_REQ
 
 #define WDA_SET_P2P_GO_NOA_REQ         SIR_HAL_SET_P2P_GO_NOA_REQ
+#define WDA_SET_TDLS_LINK_ESTABLISH_REQ SIR_HAL_TDLS_LINK_ESTABLISH_REQ
+#define WDA_SET_TDLS_LINK_ESTABLISH_REQ_RSP SIR_HAL_TDLS_LINK_ESTABLISH_REQ_RSP
 
 #define WDA_TX_COMPLETE_TIMEOUT_IND  (WDA_MSG_TYPES_END - 1)
 #define WDA_WLAN_SUSPEND_IND           SIR_HAL_WLAN_SUSPEND_IND
@@ -1036,7 +1041,8 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #endif // FEATURE_WLAN_SCAN_PNO
 
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-#define WDA_START_ROAM_CANDIDATE_LOOKUP_REQ             SIR_HAL_START_ROAM_CANDIDATE_LOOKUP_REQ
+#define WDA_ROAM_SCAN_OFFLOAD_REQ   SIR_HAL_ROAM_SCAN_OFFLOAD_REQ
+#define WDA_ROAM_SCAN_OFFLOAD_RSP   SIR_HAL_ROAM_SCAN_OFFLOAD_RSP
 #endif
 
 #ifdef WLAN_WAKEUP_EVENTS
@@ -1067,6 +1073,14 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 
 #define WDA_GET_ROAM_RSSI_REQ      SIR_HAL_GET_ROAM_RSSI_REQ
 #define WDA_GET_ROAM_RSSI_RSP      SIR_HAL_GET_ROAM_RSSI_RSP
+
+#define WDA_START_SCAN_OFFLOAD_REQ  SIR_HAL_START_SCAN_OFFLOAD_REQ
+#define WDA_START_SCAN_OFFLOAD_RSP  SIR_HAL_START_SCAN_OFFLOAD_RSP
+#define WDA_STOP_SCAN_OFFLOAD_REQ  SIR_HAL_STOP_SCAN_OFFLOAD_REQ
+#define WDA_STOP_SCAN_OFFLOAD_RSP  SIR_HAL_STOP_SCAN_OFFLOAD_RSP
+#define WDA_UPDATE_CHAN_LIST_REQ    SIR_HAL_UPDATE_CHAN_LIST_REQ
+#define WDA_UPDATE_CHAN_LIST_RSP    SIR_HAL_UPDATE_CHAN_LIST_RSP
+#define WDA_RX_SCAN_EVENT           SIR_HAL_RX_SCAN_EVENT
 
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
 
@@ -1118,6 +1132,9 @@ v_BOOL_t WDA_IsHwFrameTxTranslationCapable(v_PVOID_t pVosGCtx,
 
 #define WDA_UpdateRssiBmps(pvosGCtx,  staId, rssi) \
         WLANTL_UpdateRssiBmps(pvosGCtx, staId, rssi)
+
+#define WDA_UpdateLinkCapacity(pvosGCtx,  staId, linkCapacity) \
+        WLANTL_UpdateLinkCapacity(pvosGCtx, staId, linkCapacity)
 
 #ifdef WLAN_PERF 
 /*==========================================================================

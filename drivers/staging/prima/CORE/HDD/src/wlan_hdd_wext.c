@@ -110,6 +110,7 @@
 
 #include "wlan_hdd_dev_pwr.h"
 #include "qc_sap_ioctl.h"
+#include "sme_Api.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 extern void hdd_suspend_wlan(struct early_suspend *wlan_suspend);
@@ -2329,17 +2330,22 @@ static int iw_get_linkspeed(struct net_device *dev,
                             union iwreq_data *wrqu, char *extra)
 {
    hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
+   hdd_context_t *pHddCtx;
    char *pLinkSpeed = (char*)extra;
-   int len = sizeof(v_U16_t) + 1;
-   v_U16_t link_speed;
+   int len = sizeof(v_U32_t) + 1;
+   v_U32_t link_speed;
    hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-   int rc;
+   VOS_STATUS status;
+   int rc, valid;
 
-   if ((WLAN_HDD_GET_CTX(pAdapter))->isLogpInProgress)
+   pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+
+   valid = wlan_hdd_validate_context(pHddCtx);
+
+   if (0 != valid)
    {
-      VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
-                                  "%s:LOGP in Progress. Ignore!!!", __func__);
-      return -EBUSY;
+       hddLog(VOS_TRACE_LEVEL_ERROR, FL("HDD context is not valid"));
+       return valid;
    }
 
    if (eConnectionState_Associated != pHddStaCtx->conn_info.connState)
@@ -2349,21 +2355,40 @@ static int iw_get_linkspeed(struct net_device *dev,
    }
    else
    {
-       wlan_hdd_get_classAstats(pAdapter);
-       //The linkspeed returned by HAL is in units of 500kbps.
-       //converting it to mbps
-       link_speed = pAdapter->hdd_stats.ClassA_stat.tx_rate/2;
+       status = wlan_hdd_get_classAstats(pAdapter);
+
+       if (!VOS_IS_STATUS_SUCCESS(status ))
+       {
+           hddLog(VOS_TRACE_LEVEL_ERROR, FL("Unable to retrieve SME statistics"));
+           return -EINVAL;
+       }
+
+       /* Unit of link capacity is obtained from the TL API is MbpsX10  */
+       WLANTL_GetSTALinkCapacity(WLAN_HDD_GET_CTX(pAdapter)->pvosContext,
+          (WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))->conn_info.staId[0],
+          &link_speed);
+
+       link_speed = link_speed / 10;
+
+       if (0 == link_speed)
+       {
+           /* The linkspeed returned by HAL is in units of 500kbps.
+            * converting it to mbps.
+            * This is required to support legacy firmware which does
+            * not return link capacity.
+            */
+           link_speed = pAdapter->hdd_stats.ClassA_stat.tx_rate/2;
+       }
+
    }
 
    wrqu->data.length = len;
    // return the linkspeed in the format required by the WiFi Framework
-   rc = snprintf(pLinkSpeed, len, "%u", link_speed);
+   rc = snprintf(pLinkSpeed, len, "%lu", link_speed);
    if ((rc < 0) || (rc >= len))
    {
        // encoding or length error?
-       hddLog(VOS_TRACE_LEVEL_ERROR,
-                "%s: Unable to encode link speed, got [%s]",
-                __func__,pLinkSpeed);
+       hddLog(VOS_TRACE_LEVEL_ERROR,FL("Unable to encode link speed"));
        return -EIO;
    }
 
@@ -2742,7 +2767,8 @@ static int iw_set_priv(struct net_device *dev,
                                             (void *)(tSmeChangeCountryCallback)wlan_hdd_change_country_code_callback,
                                             country_code,
                                             pAdapter,
-                                            pHddCtx->pvosContext);
+                                            pHddCtx->pvosContext,
+                                            eSIR_TRUE);
 
         /* Wait for completion */
         lrc = wait_for_completion_interruptible_timeout(&pAdapter->change_country_code,
@@ -3317,12 +3343,21 @@ static int iw_set_encodeext(struct net_device *dev,
           ("%s:cipher_alg:%d key_len[%d] *pEncryptionType :%d \n"),__func__,(int)ext->alg,(int)ext->key_len,setKey.encType);
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
-/* The supplicant may attempt to set the PTK once pre-authentication is done.
-   Save the key in the UMAC and include it in the ADD BSS request */
+    /* The supplicant may attempt to set the PTK once pre-authentication
+       is done. Save the key in the UMAC and include it in the ADD
+       BSS request */
     halStatus = sme_FTUpdateKey( WLAN_HDD_GET_HAL_CTX(pAdapter), &setKey);
-    if( halStatus == eHAL_STATUS_FT_PREAUTH_KEY_WAIT )
+    if ( halStatus == eHAL_STATUS_FT_PREAUTH_KEY_SUCCESS )
     {
-       return -EINVAL;
+        hddLog(VOS_TRACE_LEVEL_INFO_MED,
+               "%s: Update PreAuth Key success", __func__);
+        return 0;
+    }
+    else if ( halStatus == eHAL_STATUS_FT_PREAUTH_KEY_FAILED )
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR,
+               "%s: Update PreAuth Key failed", __func__);
+        return -EINVAL;
     }
 #endif /* WLAN_FEATURE_VOWIFI_11R */
 
@@ -3987,9 +4022,7 @@ static int iw_setnone_getint(struct net_device *dev, struct iw_request_info *inf
 
         case WE_GET_WDI_DBG:
         {
-#ifdef WLAN_DEBUG
            wpalTraceDisplay();
-#endif
            *value = 0;
            break;
         }
@@ -4042,9 +4075,7 @@ int iw_set_three_ints_getnone(struct net_device *dev, struct iw_request_info *in
         }
         case WE_SET_WDI_DBG:
         {
-#ifdef WLAN_DEBUG
             wpalTraceSetLevel( value[1], value[2], value[3]);
-#endif
             break;
         }
         case WE_SET_SAP_CHANNELS:
@@ -4355,6 +4386,12 @@ static int iw_setnone_getnone(struct net_device *dev, struct iw_request_info *in
 
                pr_info("Stopping AP mode\n");
 
+               if (TRUE == sme_IsPmcBmps(WLAN_HDD_GET_HAL_CTX(pAdapter)))
+               {
+                  /* EXIT BMPS as fw cannot handle DEL_STA when its in BMPS */
+                  wlan_hdd_enter_bmps(pAdapter, DRIVER_POWER_MODE_ACTIVE);
+               }
+
                /*Make sure that pAdapter cleaned properly*/
                hdd_stop_adapter( pHddCtx, pAdapter_to_stop );
                hdd_deinit_adapter( pHddCtx, pAdapter_to_stop );
@@ -4364,6 +4401,12 @@ static int iw_setnone_getnone(struct net_device *dev, struct iw_request_info *in
                        pAdapter_to_stop->macAddressCurrent.bytes);
                hdd_close_adapter(WLAN_HDD_GET_CTX(pAdapter), pAdapter_to_stop,
                        TRUE);
+
+               if (FALSE == sme_IsPmcBmps(WLAN_HDD_GET_HAL_CTX(pAdapter)))
+               {
+                  /* put the device back into BMPS */
+                  wlan_hdd_enter_bmps(pAdapter, DRIVER_POWER_MODE_AUTO);
+               }
            }
            else
            {
@@ -5128,11 +5171,9 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     tpSirWlanSetRxpFilters wlanRxpFilterParam;
     tHalHandle hHal = WLAN_HDD_GET_HAL_CTX(pAdapter);
-    VOS_STATUS vstatus = VOS_STATUS_E_FAILURE;
     tpSirRcvFltMcAddrList mc_addr_list_ptr;
     int idx;
     eHalStatus ret_val;
-    tANI_U8 mcastBcastFilterSetting;
 
     if (pHddCtx->isLogpInProgress)
     {
@@ -5141,7 +5182,9 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
        return -EBUSY;
     }
 
-    if (HDD_MULTICAST_FILTER_LIST == pRequest->mcastBcastFilterSetting) {
+    if (HDD_MULTICAST_FILTER_LIST == pRequest->mcastBcastFilterSetting)
+    {
+#ifdef WLAN_FEATURE_PACKET_FILTERING
 
         mc_addr_list_ptr = vos_mem_malloc(sizeof(tSirRcvFltMcAddrList));
         if (NULL == mc_addr_list_ptr)
@@ -5176,23 +5219,24 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
                    __func__);
             return -EINVAL;
         }
-    } else {
+#endif //WLAN_FEATURE_PACKET_FILTERING
+    }
+    else
+    {
 
         hddLog(VOS_TRACE_LEVEL_INFO_HIGH,
                "%s: Set MC BC Filter Config request: %d suspend %d",
                __func__, pRequest->mcastBcastFilterSetting,
                pHddCtx->hdd_wlan_suspended);
 
-        pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting =
-            pRequest->mcastBcastFilterSetting;
-        pHddCtx->dynamic_mcbc_filter.enableCfg = TRUE;
+        pHddCtx->configuredMcastBcastFilter = pRequest->mcastBcastFilterSetting;
 
         if (pHddCtx->hdd_wlan_suspended)
         {
             wlanRxpFilterParam = vos_mem_malloc(sizeof(tSirWlanSetRxpFilters));
             if (NULL == wlanRxpFilterParam)
             {
-                hddLog(VOS_TRACE_LEVEL_FATAL,
+                hddLog(VOS_TRACE_LEVEL_ERROR,
                        "%s: vos_mem_alloc failed", __func__);
                 return -EINVAL;
             }
@@ -5201,44 +5245,19 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
                 pRequest->mcastBcastFilterSetting;
             wlanRxpFilterParam->setMcstBcstFilter = TRUE;
 
-            if ((pHddCtx->cfg_ini->fhostArpOffload) &&
-                (eConnectionState_Associated ==
-                 (WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))->conn_info.connState))
-            {
-                vstatus = hdd_conf_hostarpoffload(pAdapter, TRUE);
-                if (!VOS_IS_STATUS_SUCCESS(vstatus))
-                {
-                    hddLog(VOS_TRACE_LEVEL_INFO,
-                           "%s:Failed to enable ARPOFFLOAD Feature %d",
-                           __func__, vstatus);
-                }
-                else
-                {
-                    if (HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST_BROADCAST ==
-                        pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting)
-                    {
-                        wlanRxpFilterParam->configuredMcstBcstFilterSetting =
-                            HDD_MCASTBCASTFILTER_FILTER_ALL_MULTICAST;
-                    }
-                    else if (HDD_MCASTBCASTFILTER_FILTER_ALL_BROADCAST ==
-                             pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting)
-                    {
-                        wlanRxpFilterParam->configuredMcstBcstFilterSetting =
-                            HDD_MCASTBCASTFILTER_FILTER_NONE;
-                    }
-                }
-            }
+            hdd_conf_hostoffload(pAdapter, TRUE);
+            wlanRxpFilterParam->configuredMcstBcstFilterSetting =
+                                pHddCtx->configuredMcastBcastFilter;
 
             hddLog(VOS_TRACE_LEVEL_INFO, "%s:MC/BC changed Req %d Set %d En %d",
                    __func__,
-                   pHddCtx->dynamic_mcbc_filter.mcastBcastFilterSetting,
+                   pHddCtx->configuredMcastBcastFilter,
                    wlanRxpFilterParam->configuredMcstBcstFilterSetting,
                    wlanRxpFilterParam->setMcstBcstFilter);
 
-            mcastBcastFilterSetting = wlanRxpFilterParam->configuredMcstBcstFilterSetting;
-
-            if (eHAL_STATUS_SUCCESS != sme_ConfigureRxpFilter(WLAN_HDD_GET_HAL_CTX(pAdapter),
-                                                              wlanRxpFilterParam))
+            if (eHAL_STATUS_SUCCESS !=
+                    sme_ConfigureRxpFilter(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                                           wlanRxpFilterParam))
             {
                 hddLog(VOS_TRACE_LEVEL_ERROR,
                        "%s: Failure to execute set HW MC/BC Filter request",
@@ -5247,8 +5266,6 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
                 return -EINVAL;
             }
 
-            pHddCtx->dynamic_mcbc_filter.mcBcFilterSuspend =
-                mcastBcastFilterSetting;
         }
     }
 
@@ -5261,11 +5278,42 @@ static int iw_clear_dynamic_mcbc_filter(struct net_device *dev,
 {
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-
+    tpSirWlanSetRxpFilters wlanRxpFilterParam;
     hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s: ", __func__);
 
-    pHddCtx->dynamic_mcbc_filter.enableCfg = FALSE;
+    //Reset the filter to INI value as we have to clear the dynamic filter
+    pHddCtx->configuredMcastBcastFilter = pHddCtx->cfg_ini->mcastBcastFilterSetting;
 
+    //Configure FW with new setting
+    if (pHddCtx->hdd_wlan_suspended)
+    {
+        wlanRxpFilterParam = vos_mem_malloc(sizeof(tSirWlanSetRxpFilters));
+        if (NULL == wlanRxpFilterParam)
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                   "%s: vos_mem_alloc failed", __func__);
+            return -EINVAL;
+        }
+
+        wlanRxpFilterParam->configuredMcstBcstFilterSetting =
+            pHddCtx->configuredMcastBcastFilter;
+        wlanRxpFilterParam->setMcstBcstFilter = TRUE;
+
+        hdd_conf_hostoffload(pAdapter, TRUE);
+        wlanRxpFilterParam->configuredMcstBcstFilterSetting =
+                            pHddCtx->configuredMcastBcastFilter;
+
+        if (eHAL_STATUS_SUCCESS !=
+                  sme_ConfigureRxpFilter(WLAN_HDD_GET_HAL_CTX(pAdapter),
+                                         wlanRxpFilterParam))
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                   "%s: Failure to execute set HW MC/BC Filter request",
+                   __func__);
+            vos_mem_free(wlanRxpFilterParam);
+            return -EINVAL;
+        }
+    }
     return 0;
 }
 
@@ -5502,6 +5550,189 @@ int wlan_hdd_set_filter(hdd_context_t *pHddCtx, tpPacketFilterCfg pRequest,
             hddLog(VOS_TRACE_LEVEL_INFO_HIGH, "%s: Packet Filter Request: Invalid %d\n",
                     __func__, pRequest->filterAction);
             return -EINVAL;
+    }
+    return 0;
+}
+
+int wlan_hdd_setIPv6Filter(hdd_context_t *pHddCtx, tANI_U8 filterType,
+                           tANI_U8 sessionId)
+{
+    tSirRcvPktFilterCfgType    packetFilterSetReq = {0};
+    tSirRcvFltPktClearParam    packetFilterClrReq = {0};
+
+    if (NULL == pHddCtx)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR, FL(" NULL HDD Context Passed"));
+        return -EINVAL;
+    }
+
+    if (pHddCtx->isLogpInProgress)
+    {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
+                                  "%s:LOGP in Progress. Ignore!!!", __func__);
+       return -EBUSY;
+    }
+
+    if (pHddCtx->cfg_ini->disablePacketFilter)
+    {
+        hddLog(VOS_TRACE_LEVEL_ERROR,
+                "%s: Packet Filtering Disabled. Returning ",
+                __func__ );
+        return -EINVAL;
+    }
+
+    switch (filterType)
+    {
+        /* For setting IPV6 MC and UC Filter we need to configure
+         * 2 filters, one for MC and one for UC.
+         * The Filter ID shouldn't be swapped, which results in making
+         * UC Filter ineffective.
+         * We have Hardcode all the values
+         *
+         * Reason for a seperate UC filter is because, driver need to
+         * specify the FW that the specific filter is for unicast
+         * otherwise FW will not pass the unicast frames by default
+         * through the filter. This is required to avoid any performance
+         * hits when no unicast filter is set and only MC/BC are set.
+         * The way driver informs host is by using the MAC protocol
+         * layer, CMP flag set to MAX, CMP Data set to 1.
+         */
+
+    case HDD_FILTER_IPV6_MC_UC:
+        /* Setting IPV6 MC Filter below
+         */
+        packetFilterSetReq.filterType = HDD_RCV_FILTER_SET;
+        packetFilterSetReq.filterId = HDD_FILTER_ID_IPV6_MC;
+        packetFilterSetReq.numFieldParams = 2;
+        packetFilterSetReq.paramsData[0].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_MAC;
+        packetFilterSetReq.paramsData[0].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_NOT_EQUAL;
+        packetFilterSetReq.paramsData[0].dataOffset =
+                                         WLAN_HDD_80211_FRM_DA_OFFSET;
+        packetFilterSetReq.paramsData[0].dataLength = 1;
+        packetFilterSetReq.paramsData[0].compareData[0] =
+                                         HDD_IPV6_MC_CMP_DATA;
+
+        packetFilterSetReq.paramsData[1].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_ARP;
+        packetFilterSetReq.paramsData[1].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_NOT_EQUAL;
+        packetFilterSetReq.paramsData[1].dataOffset = ETH_ALEN;
+        packetFilterSetReq.paramsData[1].dataLength = 2;
+        packetFilterSetReq.paramsData[1].compareData[0] =
+                                         HDD_IPV6_CMP_DATA_0;
+        packetFilterSetReq.paramsData[1].compareData[1] =
+                                         HDD_IPV6_CMP_DATA_1;
+
+
+        if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterSetFilter(pHddCtx->hHal,
+                                    &packetFilterSetReq, sessionId))
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                    "%s: Failure to execute Set IPv6 Mulicast Filter",
+                    __func__);
+            return -EINVAL;
+        }
+
+        memset( &packetFilterSetReq, 0, sizeof(tSirRcvPktFilterCfgType));
+
+        /*
+         * Setting IPV6 UC Filter below
+         */
+        packetFilterSetReq.filterType = HDD_RCV_FILTER_SET;
+        packetFilterSetReq.filterId = HDD_FILTER_ID_IPV6_UC;
+        packetFilterSetReq.numFieldParams = 2;
+        packetFilterSetReq.paramsData[0].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_MAC;
+        packetFilterSetReq.paramsData[0].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_MAX;
+        packetFilterSetReq.paramsData[0].dataOffset = 0;
+        packetFilterSetReq.paramsData[0].dataLength = 1;
+        packetFilterSetReq.paramsData[0].compareData[0] =
+                                         HDD_IPV6_UC_CMP_DATA;
+
+        packetFilterSetReq.paramsData[1].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_ARP;
+        packetFilterSetReq.paramsData[1].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_NOT_EQUAL;
+        packetFilterSetReq.paramsData[1].dataOffset = ETH_ALEN;
+        packetFilterSetReq.paramsData[1].dataLength = 2;
+        packetFilterSetReq.paramsData[1].compareData[0] =
+                                         HDD_IPV6_CMP_DATA_0;
+        packetFilterSetReq.paramsData[1].compareData[1] =
+                                         HDD_IPV6_CMP_DATA_1;
+
+        if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterSetFilter(pHddCtx->hHal,
+                                    &packetFilterSetReq, sessionId))
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                    "%s: Failure to execute Set IPv6 Unicast Filter",
+                    __func__);
+            return -EINVAL;
+        }
+
+        break;
+
+    case HDD_FILTER_IPV6_MC:
+        /*
+         * IPV6 UC Filter might be already set,
+         * clear the UC Filter. As the Filter
+         * IDs are static, we can directly clear it.
+         */
+        packetFilterSetReq.filterType = HDD_RCV_FILTER_SET;
+        packetFilterClrReq.filterId = HDD_FILTER_ID_IPV6_UC;
+        if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterClearFilter(pHddCtx->hHal,
+                                    &packetFilterClrReq, sessionId))
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                    "%s: Failure to execute Clear IPv6 Unicast Filter",
+                    __func__);
+            return -EINVAL;
+        }
+
+        /*
+         * Setting IPV6 MC Filter below
+         */
+        packetFilterSetReq.filterId = HDD_FILTER_ID_IPV6_MC;
+        packetFilterSetReq.numFieldParams = 2;
+        packetFilterSetReq.paramsData[0].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_MAC;
+        packetFilterSetReq.paramsData[0].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_NOT_EQUAL;
+        packetFilterSetReq.paramsData[0].dataOffset =
+                                         WLAN_HDD_80211_FRM_DA_OFFSET;
+        packetFilterSetReq.paramsData[0].dataLength = 1;
+        packetFilterSetReq.paramsData[0].compareData[0] =
+                                         HDD_IPV6_MC_CMP_DATA;
+
+        packetFilterSetReq.paramsData[1].protocolLayer =
+                                         HDD_FILTER_PROTO_TYPE_ARP;
+        packetFilterSetReq.paramsData[1].cmpFlag =
+                                         HDD_FILTER_CMP_TYPE_NOT_EQUAL;
+        packetFilterSetReq.paramsData[1].dataOffset = ETH_ALEN;
+        packetFilterSetReq.paramsData[1].dataLength = 2;
+        packetFilterSetReq.paramsData[1].compareData[0] =
+                                         HDD_IPV6_CMP_DATA_0;
+        packetFilterSetReq.paramsData[1].compareData[1] =
+                                         HDD_IPV6_CMP_DATA_1;
+
+
+        if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterSetFilter(pHddCtx->hHal,
+                                    &packetFilterSetReq, sessionId))
+        {
+            hddLog(VOS_TRACE_LEVEL_ERROR,
+                    "%s: Failure to execute Set IPv6 Multicast Filter",
+                    __func__);
+            return -EINVAL;
+        }
+        break;
+
+    default :
+        hddLog(VOS_TRACE_LEVEL_INFO_HIGH,
+                "%s: Packet Filter Request: Invalid",
+                __func__);
+        return -EINVAL;
     }
     return 0;
 }
@@ -6160,7 +6391,7 @@ int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr)
 
              if(lrc <= 0) {
 
-                hddLog(VOS_TRACE_LEVEL_ERROR,"%s: %s while while waiting for csrRoamDisconnect ",
+                hddLog(VOS_TRACE_LEVEL_ERROR,"%s: %s while waiting for csrRoamDisconnect ",
                  __func__, (0 == lrc) ? "Timeout" : "Interrupt");
 
                 return (0 == lrc) ? -ETIMEDOUT : -EINTR;
@@ -6884,7 +7115,7 @@ static const struct iw_priv_args we_private_args[] = {
     {
         WLAN_GET_LINK_SPEED,
         IW_PRIV_TYPE_CHAR | 18,
-        IW_PRIV_TYPE_CHAR | 3, "getLinkSpeed" },
+        IW_PRIV_TYPE_CHAR | 5, "getLinkSpeed" },
    
 };
 

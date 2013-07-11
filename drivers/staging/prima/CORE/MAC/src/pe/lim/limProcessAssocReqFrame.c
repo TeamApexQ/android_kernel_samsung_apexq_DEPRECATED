@@ -204,6 +204,7 @@ limProcessAssocReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,
     tANI_U8    *wpsIe = NULL;
     tSirMacRateSet  basicRates;
     tANI_U8 i = 0, j = 0;
+    tANI_BOOLEAN pmfConnection;
 
     limGetPhyMode(pMac, &phyMode, psessionEntry);
 
@@ -667,7 +668,8 @@ limProcessAssocReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,
                     if(SIR_MAC_OUI_VERSION_1 == Dot11fIERSN.version)
                     {
                         /* check the groupwise and pairwise cipher suites */
-                        if(eSIR_SUCCESS != (status = limCheckRxRSNIeMatch(pMac, Dot11fIERSN, psessionEntry, pAssocReq->HTCaps.present) ) )
+                        if(eSIR_SUCCESS != (status = limCheckRxRSNIeMatch(pMac, Dot11fIERSN, psessionEntry,
+                                                                          pAssocReq->HTCaps.present, &pmfConnection)))
                         {
                             /* some IE is not properly sent */
                             /* received Association req frame with RSN IE but length is 0 */
@@ -1088,12 +1090,10 @@ sendIndToSme:
         pStaDs->htLdpcCapable = (tANI_U8)pAssocReq->HTCaps.advCodingCap;
     }
 
-#ifdef WLAN_FEATURE_11AC
     if(pAssocReq->VHTCaps.present)
     {
         pStaDs->vhtLdpcCapable = (tANI_U8)pAssocReq->VHTCaps.ldpcCodingCap;
     }
-#endif
 
 #ifdef WLAN_FEATURE_11AC
 if (limPopulateMatchingRateSet(pMac,
@@ -1203,6 +1203,10 @@ if (limPopulateMatchingRateSet(pMac,
 
     if (pAssocReq->propIEinfo.aniIndicator)
         pStaDs->aniPeer = 1;
+
+#ifdef WLAN_FEATURE_11W
+    pStaDs->rmfEnabled = (pmfConnection) ? 1 : 0;
+#endif
 
     // BTAMP: Storing the parsed assoc request in the psessionEntry array
     psessionEntry->parsedAssocReq[pStaDs->assocId] = pAssocReq;

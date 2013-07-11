@@ -39,8 +39,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+
 /*
- * Airgo Networks, Inc proprietary. All rights reserved.
  * This file limAssocUtils.cc contains the utility functions
  * LIM uses while processing (Re) Association messages.
  * Author:        Chandra Modumudi
@@ -323,7 +323,7 @@ limCheckRxBasicRates(tpAniSirGlobal pMac, tSirMacRateSet rxRateSet,tpPESession p
     for (k = 0; k < j; k++)
     {
         match = 0;
-        for (i = 0; i < rxRateSet.numRates; i++)
+        for (i = 0; ((i < rxRateSet.numRates) && (i < SIR_MAC_RATESET_EID_MAX)); i++)
         {
             if ((rxRateSet.rate[i] | 0x80) ==    basicRate.rate[k])
                 match = 1;
@@ -441,10 +441,17 @@ limCheckMCSSet(tpAniSirGlobal pMac, tANI_U8* supportedMCSSet)
  */
 
 tANI_U8
-limCheckRxRSNIeMatch(tpAniSirGlobal pMac, tDot11fIERSN rxRSNIe,tpPESession pSessionEntry, tANI_U8 staIsHT)
+limCheckRxRSNIeMatch(tpAniSirGlobal pMac, tDot11fIERSN rxRSNIe,tpPESession pSessionEntry,
+                     tANI_U8 staIsHT, tANI_BOOLEAN *pmfConnection)
 {
     tDot11fIERSN    *pRSNIe;
     tANI_U8         i, j, match, onlyNonHtCipher = 1;
+#ifdef WLAN_FEATURE_11W
+    tANI_BOOLEAN weRequirePMF;
+    tANI_BOOLEAN weArePMFCapable;
+    tANI_BOOLEAN theyRequirePMF;
+    tANI_BOOLEAN theyArePMFCapable;
+#endif
 
 
     //RSN IE should be received from PE
@@ -500,6 +507,23 @@ limCheckRxRSNIeMatch(tpAniSirGlobal pMac, tDot11fIERSN rxRSNIe,tpPESession pSess
     {
         return eSIR_MAC_INVALID_RSN_IE_CAPABILITIES_STATUS;
     }
+
+    *pmfConnection = eANI_BOOLEAN_FALSE;
+#ifdef WLAN_FEATURE_11W
+    weRequirePMF = (pRSNIe->RSN_Cap[0] >> 6) & 0x1;
+    weArePMFCapable = (pRSNIe->RSN_Cap[0] >> 7) & 0x1;
+    theyRequirePMF = (rxRSNIe.RSN_Cap[0] >> 6) & 0x1;
+    theyArePMFCapable = (rxRSNIe.RSN_Cap[0] >> 7) & 0x1;
+
+    if ((theyRequirePMF && !weArePMFCapable) || (weRequirePMF && !theyArePMFCapable))
+    {
+        limLog(pMac, LOG1, FL("Association fail, robust management frames policy violation"));
+        return eSIR_MAC_ROBUST_MGMT_FRAMES_POLICY_VIOLATION;
+    }
+
+    if(theyArePMFCapable && weArePMFCapable)
+        *pmfConnection = eANI_BOOLEAN_TRUE;
+#endif
 
     return eSIR_SUCCESS;
 } /****** end limCheckRxRSNIeMatch() ******/
@@ -2260,7 +2284,6 @@ limAddSta(
     {
         /* peer STA get the LDPC capability from pStaDs, which populated from 
          * HT/VHT capability*/
-#ifdef WLAN_FEATURE_11AC
         if(pAddStaParams->vhtTxBFCapable && pMac->lim.disableLDPCWithTxbfAP)
         {
             pAddStaParams->htLdpcCapable = 0;
@@ -2268,12 +2291,9 @@ limAddSta(
         }
         else
         {
-#endif
             pAddStaParams->htLdpcCapable = pStaDs->htLdpcCapable;
             pAddStaParams->vhtLdpcCapable = pStaDs->vhtLdpcCapable;
-#ifdef WLAN_FEATURE_11AC
         }
-#endif
     }
     else if( STA_ENTRY_SELF == pStaDs->staType)
     {
@@ -2329,7 +2349,14 @@ limAddSta(
         limLog( pMac, LOG1, FL( "uAPSD = 0x%x, maxSpLen = %d" ),
             pAddStaParams->uAPSD, pAddStaParams->maxSPLen);
     }
-  //we need to defer the message until we get the response back from HAL.
+
+#ifdef WLAN_FEATURE_11W
+    pAddStaParams->rmfEnabled = pStaDs->rmfEnabled;
+    limLog( pMac, LOG1, FL( "Adding station, station index %d, PMF enabled %d"),
+            pAddStaParams->staIdx, pAddStaParams->rmfEnabled);
+#endif
+
+    //we need to defer the message until we get the response back from HAL.
     if (pAddStaParams->respReqd)
         SET_LIM_PROCESS_DEFD_MESGS(pMac, false);
 
@@ -2659,8 +2686,7 @@ limAddStaSelf(tpAniSirGlobal pMac,tANI_U16 staIdx, tANI_U8 updateSta, tpPESessio
 #ifdef WLAN_FEATURE_11AC
     pAddStaParams->vhtCapable = IS_DOT11_MODE_VHT(selfStaDot11Mode);
     if (pAddStaParams->vhtCapable){
-        pAddStaParams->vhtTxChannelWidthSet =
-            pMac->roam.configParam.nVhtChannelWidth;
+        pAddStaParams->vhtTxChannelWidthSet = psessionEntry->vhtTxChannelWidthSet;
         limLog( pMac, LOG1, FL("VHT WIDTH SET %d"),pAddStaParams->vhtTxChannelWidthSet);
     }
     pAddStaParams->vhtTxBFCapable = psessionEntry->txBFIniFeatureEnabled;
@@ -3308,29 +3334,32 @@ tSirRetStatus limStaSendAddBss( tpAniSirGlobal pMac, tpSirAssocRsp pAssocRsp,
         pAddBssParams->staContext.maxSPLen = 0;
         pAddBssParams->staContext.shortPreambleSupported = (tANI_U8)pAssocRsp->capabilityInfo.shortPreamble;
         pAddBssParams->staContext.updateSta = updateEntry;
-
-        if (IS_DOT11_MODE_HT(psessionEntry->dot11mode) && ( pBeaconStruct->HTCaps.present ))
+        if (IS_DOT11_MODE_HT(psessionEntry->dot11mode) && pBeaconStruct->HTCaps.present)
         {
             pAddBssParams->staContext.us32MaxAmpduDuration = 0;
             pAddBssParams->staContext.htCapable = 1;
             pAddBssParams->staContext.greenFieldCapable  = ( tANI_U8 )pAssocRsp->HTCaps.greenField;
             pAddBssParams->staContext.lsigTxopProtection = ( tANI_U8 )pAssocRsp->HTCaps.lsigTXOPProtection;
+#ifdef WLAN_FEATURE_11AC
+            if (psessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
+            {
+                pAddBssParams->staContext.vhtCapable = 1;
+                if ((pAssocRsp->VHTCaps.suBeamFormerCap ||
+                     pAssocRsp->VHTCaps.muBeamformerCap) &&
+                     psessionEntry->txBFIniFeatureEnabled)
+                {
+                    pAddBssParams->staContext.vhtTxBFCapable = 1;
+                }
+            }
+#endif
             if( (pAssocRsp->HTCaps.supportedChannelWidthSet) &&
                 (chanWidthSupp) )
             {
                 pAddBssParams->staContext.txChannelWidthSet = ( tANI_U8 )pAssocRsp->HTInfo.recommendedTxWidthSet;
-                
 #ifdef WLAN_FEATURE_11AC
-                if (psessionEntry->vhtCapability && ( pBeaconStruct->VHTCaps.present ))
+                if (pAddBssParams->staContext.vhtCapable)
                 {
-                    pAddBssParams->staContext.vhtCapable = 1;
                     pAddBssParams->staContext.vhtTxChannelWidthSet = pAssocRsp->VHTOperation.chanWidth; //pMac->lim.apChanWidth;
-                    if ( (pAssocRsp->VHTCaps.suBeamFormerCap ||
-                          pAssocRsp->VHTCaps.muBeamformerCap) &&
-                          psessionEntry->txBFIniFeatureEnabled )
-                    {
-                        pAddBssParams->staContext.vhtTxBFCapable = 1;
-                    }
                 }
 #endif
             }
@@ -3346,20 +3375,16 @@ tSirRetStatus limStaSendAddBss( tpAniSirGlobal pMac, tpSirAssocRsp pAssocRsp,
             pAddBssParams->staContext.fShortGI20Mhz = (tANI_U8)pAssocRsp->HTCaps.shortGI20MHz;
             pAddBssParams->staContext.fShortGI40Mhz = (tANI_U8)pAssocRsp->HTCaps.shortGI40MHz;
             pAddBssParams->staContext.maxAmpduSize= pAssocRsp->HTCaps.maxRxAMPDUFactor;
-#ifdef WLAN_FEATURE_11AC
             if( pAddBssParams->staContext.vhtTxBFCapable && pMac->lim.disableLDPCWithTxbfAP )
             {
-#endif
                 pAddBssParams->staContext.htLdpcCapable = 0;
                 pAddBssParams->staContext.vhtLdpcCapable = 0;
-#ifdef WLAN_FEATURE_11AC
             }
             else
             {
                 pAddBssParams->staContext.htLdpcCapable = (tANI_U8)pAssocRsp->HTCaps.advCodingCap;
                 pAddBssParams->staContext.vhtLdpcCapable = (tANI_U8)pAssocRsp->VHTCaps.ldpcCodingCap;
             }
-#endif
 
             if( pBeaconStruct->HTInfo.present )
                 pAddBssParams->staContext.rifsMode = pAssocRsp->HTInfo.rifsMode;
@@ -3615,23 +3640,29 @@ tSirRetStatus limStaSendAddBssPreAssoc( tpAniSirGlobal pMac, tANI_U8 updateEntry
             pAddBssParams->staContext.htCapable = 1;
             pAddBssParams->staContext.greenFieldCapable  = ( tANI_U8 ) pBeaconStruct->HTCaps.greenField;
             pAddBssParams->staContext.lsigTxopProtection = ( tANI_U8 ) pBeaconStruct->HTCaps.lsigTXOPProtection;
+#ifdef WLAN_FEATURE_11AC
+            if (psessionEntry->vhtCapability && pBeaconStruct->VHTCaps.present)
+            {
+                pAddBssParams->staContext.vhtCapable = 1;
+                if ((pBeaconStruct->VHTCaps.suBeamFormerCap ||
+                     pBeaconStruct->VHTCaps.muBeamformerCap) &&
+                     psessionEntry->txBFIniFeatureEnabled )
+                {
+                    pAddBssParams->staContext.vhtTxBFCapable = 1;
+                }
+            }
+#endif
             if( (pBeaconStruct->HTCaps.supportedChannelWidthSet) &&
                 (chanWidthSupp) )
             {
                 pAddBssParams->staContext.txChannelWidthSet = ( tANI_U8 )pBeaconStruct->HTInfo.recommendedTxWidthSet;
-          #ifdef WLAN_FEATURE_11AC
-                if (psessionEntry->vhtCapability && ( pBeaconStruct->VHTCaps.present ))
+#ifdef WLAN_FEATURE_11AC
+                if (pAddBssParams->staContext.vhtCapable)
                 {
-                    pAddBssParams->staContext.vhtCapable = 1;
-                    pAddBssParams->staContext.vhtTxChannelWidthSet = pBeaconStruct->VHTOperation.chanWidth; 
-                    if ((pBeaconStruct->VHTCaps.suBeamFormerCap ||
-                         pBeaconStruct->VHTCaps.muBeamformerCap) &&
-                         psessionEntry->txBFIniFeatureEnabled )
-                    {
-                        pAddBssParams->staContext.vhtTxBFCapable = 1;
-                    }
+                    pAddBssParams->staContext.vhtTxChannelWidthSet =
+                                     pBeaconStruct->VHTOperation.chanWidth;
                 }
-          #endif
+#endif
             }
             else
             {
@@ -3645,20 +3676,16 @@ tSirRetStatus limStaSendAddBssPreAssoc( tpAniSirGlobal pMac, tANI_U8 updateEntry
             pAddBssParams->staContext.fShortGI20Mhz = (tANI_U8)pBeaconStruct->HTCaps.shortGI20MHz;
             pAddBssParams->staContext.fShortGI40Mhz = (tANI_U8)pBeaconStruct->HTCaps.shortGI40MHz;
             pAddBssParams->staContext.maxAmpduSize= pBeaconStruct->HTCaps.maxRxAMPDUFactor;
-#ifdef WLAN_FEATURE_11AC
             if( pAddBssParams->staContext.vhtTxBFCapable && pMac->lim.disableLDPCWithTxbfAP )
             {
-#endif
                 pAddBssParams->staContext.htLdpcCapable = 0;
                 pAddBssParams->staContext.vhtLdpcCapable = 0;
-#ifdef WLAN_FEATURE_11AC
             }
             else
             {
                 pAddBssParams->staContext.htLdpcCapable = (tANI_U8)pBeaconStruct->HTCaps.advCodingCap;
                 pAddBssParams->staContext.vhtLdpcCapable = (tANI_U8)pBeaconStruct->VHTCaps.ldpcCodingCap;
             }
-#endif
             
             if( pBeaconStruct->HTInfo.present )
                 pAddBssParams->staContext.rifsMode = pBeaconStruct->HTInfo.rifsMode;
