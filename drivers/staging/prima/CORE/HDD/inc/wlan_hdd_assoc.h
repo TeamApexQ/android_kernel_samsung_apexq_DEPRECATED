@@ -42,7 +42,7 @@
 #if !defined( HDD_CONNECTION_H__ ) 
 #define HDD_CONNECTION_H__
 #include <wlan_hdd_mib.h>
-#define HDD_MAX_NUM_IBSS_STA ( 9 )
+#define HDD_MAX_NUM_IBSS_STA ( 32 )
 #ifdef FEATURE_WLAN_TDLS
 #define HDD_MAX_NUM_TDLS_STA ( HDD_MAX_NUM_IBSS_STA - 1 ) // up to 3 as 1 is assigned to AP
 #define TDLS_STA_INDEX_VALID(staId) \
@@ -52,7 +52,7 @@
 #define TKIP_COUNTER_MEASURE_STOPED  0 
 /* Timeout (in ms) for Link to Up before Registering Station */
 #define ASSOC_LINKUP_TIMEOUT 60
-#define IBSS_BROADCAST_STAID 1
+#define IBSS_BROADCAST_STAID 0
 typedef enum 
 {
    /** Not associated in Infra or participating in an IBSS / Ad-hoc network.*/
@@ -140,5 +140,5 @@ int hdd_SetGENIEToCsr( hdd_adapter_t *pAdapter, eCsrAuthType *RSNAuthType );
 int hdd_set_csr_auth_type( hdd_adapter_t *pAdapter, eCsrAuthType RSNAuthType );
 VOS_STATUS hdd_roamRegisterTDLSSTA( hdd_adapter_t *pAdapter,
                                     tANI_U8 *peerMac, tANI_U16 staId, tANI_U8 ucastSig);
-
+void hdd_PerformRoamSetKeyComplete(hdd_adapter_t *pAdapter);
 #endif

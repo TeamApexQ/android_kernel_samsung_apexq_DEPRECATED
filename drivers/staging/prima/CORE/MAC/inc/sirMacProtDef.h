@@ -38,8 +38,9 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+
 /*
- * Airgo Networks, Inc proprietary. All rights reserved.
  * This file sirMacProtDef.h contains the MAC/PHY protocol
  * definitions used across various projects.
  * Author:        Chandra Modumudi
@@ -499,8 +500,10 @@
 #define SIR_MAC_OUI_WSM_SCHEDULE_MAX        20
 
 #ifdef WLAN_NS_OFFLOAD
-#define SIR_MAC_NS_OFFLOAD_SIZE        1  //support only one IPv6 offload
+#define SIR_MAC_NS_OFFLOAD_SIZE             1  //support only one IPv6 offload
 #define SIR_MAC_NUM_TARGET_IPV6_NS_OFFLOAD_NA   2 //Number of target IP in NA frames. It must be at least 2
+#define SIR_MAC_IPV6_ADDR_LEN               16
+#define SIR_IPV6_ADDR_VALID                 1
 #endif //WLAN_NS_OFFLOAD
 #define SIR_MAC_ARP_OFFLOAD_SIZE        1
 
@@ -632,6 +635,10 @@
 #define IS_WES_MODE_ENABLED(x) \
                     ((x)->roam.configParam.isWESModeEnabled)
 
+#define BA_RECIPIENT       1
+#define BA_INITIATOR       2
+#define BA_BOTH_DIRECTIONS 3
+
 /// Status Code (present in Management response frames) enum
 
 typedef enum eSirMacStatusCodes
@@ -754,7 +761,10 @@ typedef enum eSirMacReasonCodes
     eSIR_MAC_TDLS_TEARDOWN_PEER_UNREACHABLE          = 25, //TDLS direct link teardown due to TDLS peer STA unreachable via the TDLS direct link
     eSIR_MAC_TDLS_TEARDOWN_UNSPEC_REASON             = 26, //TDLS direct link teardown for unspecified reason
 #endif
-    // reserved                                        27 - 31
+    // reserved                                        27 - 30
+#ifdef WLAN_FEATURE_11W
+    eSIR_MAC_ROBUST_MGMT_FRAMES_POLICY_VIOLATION     = 31, //Robust management frames policy violation
+#endif
     eSIR_MAC_QOS_UNSPECIFIED_REASON                  = 32, //Disassociated for unspecified, QoS-related reason
     eSIR_MAC_QAP_NO_BANDWIDTH_REASON                 = 33, //Disassociated because QoS AP lacks sufficient bandwidth for this QoS STA
     eSIR_MAC_XS_UNACKED_FRAMES_REASON                = 34, //Disassociated because excessive number of frames need to be acknowledged, but are not

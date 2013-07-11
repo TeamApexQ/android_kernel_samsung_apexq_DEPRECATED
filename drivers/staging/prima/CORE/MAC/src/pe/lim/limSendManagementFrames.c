@@ -138,6 +138,48 @@ tSirRetStatus limPopulateMacHeader( tpAniSirGlobal pMac,
     return statusCode;
 } /*** end limPopulateMacHeader() ***/
 
+#ifdef WLAN_FEATURE_11W
+/**
+ *
+ * \brief This function is called by various LIM modules to correctly set
+ * the Protected bit in the Frame Control Field of the 802.11 frame MAC header
+ *
+ *
+ * \param  pMac Pointer to Global MAC structure
+ *
+ * \param psessionEntry Pointer to session corresponding to the connection
+ *
+ * \param peer Peer address of the STA to which the frame is to be sent
+ *
+ * \param pMacHdr Pointer to the frame MAC header
+ *
+ * \return nothing
+ *
+ *
+ */
+void
+limSetProtectedBit(tpAniSirGlobal  pMac,
+                   tpPESession     psessionEntry,
+                   tSirMacAddr     peer,
+                   tpSirMacMgmtHdr pMacHdr)
+{
+    tANI_U16 aid;
+    tpDphHashNode pStaDs;
+
+    if( (psessionEntry->limSystemRole == eLIM_AP_ROLE) ||
+         (psessionEntry->limSystemRole == eLIM_BT_AMP_AP_ROLE) )
+    {
+
+        pStaDs = dphLookupHashEntry( pMac, peer, &aid, &psessionEntry->dph.dphHashTable );
+        if( pStaDs != NULL )
+            if( pStaDs->rmfEnabled )
+                pMacHdr->fc.wep = 1;
+    }
+    else if ( psessionEntry->limRmfEnabled )
+        pMacHdr->fc.wep = 1;
+} /*** end limSetProtectedBit() ***/
+#endif
+
 /**
  * \brief limSendProbeReqMgmtFrame
  *
@@ -608,8 +650,8 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     {
       PopulateDot11fWPA( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
           &pFrm->WPA );
-      PopulateDot11fRSN( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
-          &pFrm->RSN );
+      PopulateDot11fRSNOpaque( pMac, &( psessionEntry->pLimStartBssReq->rsnIE ),
+          &pFrm->RSNOpaque );
     }
 
     PopulateDot11fWMM( pMac, &pFrm->WMMInfoAp, &pFrm->WMMParams, &pFrm->WMMCaps, psessionEntry );
@@ -864,11 +906,20 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
     }
     if (noaLen != 0)
     {
-        if (palCopyMemory ( pMac->hHdd, &pFrame[nBytes - (total_noaLen)],
-                            &noaIe[0], total_noaLen) != eHAL_STATUS_SUCCESS)
+        if (total_noaLen > (SIR_MAX_NOA_ATTR_LEN + SIR_P2P_IE_HEADER_LEN))
         {
             limLog(pMac, LOGE,
                   FL("Not able to insert NoA because of length constraint"));
+            palFreeMemory(pMac->hHdd, addIE);
+            palFreeMemory(pMac->hHdd, pFrm);
+            palPktFree( pMac->hHdd, HAL_TXRX_FRM_802_11_MGMT,
+                       ( void* ) pFrame, ( void* ) pPacket );
+            return;
+        }
+        else
+        {
+            palCopyMemory(pMac->hHdd, &pFrame[nBytes - (total_noaLen)],
+                            &noaIe[0], total_noaLen);
         }
     }
 
@@ -1087,10 +1138,7 @@ limSendAddtsReqActionFrame(tpAniSirGlobal    pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peerMacAddr, pMacHdr);
 #endif
 
     // That done, pack the struct:
@@ -1675,10 +1723,7 @@ limSendAddtsRspActionFrame(tpAniSirGlobal     pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     // That done, pack the struct:
@@ -1864,10 +1909,7 @@ limSendDeltsReqActionFrame(tpAniSirGlobal  pMac,
     sirCopyMacAddr(pMacHdr->bssId, psessionEntry->bssId);
     
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     // That done, pack the struct:
@@ -2147,23 +2189,30 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
                 (unsigned int)psessionEntry->pLimJoinReq->bssDescription.mdie[1],
                 (unsigned int)psessionEntry->pLimJoinReq->bssDescription.mdie[2]);
 #endif
-        PopulateMDIE( pMac, &pFrm->MobilityDomain, psessionEntry->pLimJoinReq->bssDescription.mdie); 
+        PopulateMDIE( pMac, &pFrm->MobilityDomain,
+                                 psessionEntry->pLimJoinReq->bssDescription.mdie);
     }
-    else 
+    else
     {
         // No 11r IEs dont send any MDIE
-        limLog( pMac, LOG1, FL("mdie not present"));
+        limLog( pMac, LOG1, FL("MDIE not present"));
     }
 #endif
 
 #ifdef FEATURE_WLAN_CCX
-    // For CCX Associations fill the CCX IEs
-    if (psessionEntry->isCCXconnection)
+    /* CCX Version IE will be included in association request
+       when CCX is enabled on DUT through ini */
+    if (psessionEntry->pLimJoinReq->isCCXFeatureIniEnabled)
+    {
+        PopulateDot11fCCXVersion(&pFrm->CCXVersion);
+    }
+    /* For CCX Associations fill the CCX IEs */
+    if (psessionEntry->isCCXconnection &&
+        psessionEntry->pLimJoinReq->isCCXFeatureIniEnabled)
     {
 #ifndef FEATURE_DISABLE_RM
         PopulateDot11fCCXRadMgmtCap(&pFrm->CCXRadMgmtCap);
 #endif
-        PopulateDot11fCCXVersion(&pFrm->CCXVersion);
     }
 #endif
 
@@ -2478,7 +2527,7 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
         }
 
 #ifdef FEATURE_WLAN_CCX
-        if(psessionEntry->pLimReAssocReq->cckmIE.length)
+        if (psessionEntry->pLimReAssocReq->cckmIE.length)
         {
             PopulateDot11fCCXCckmOpaque( pMac, &( psessionEntry->pLimReAssocReq->cckmIE ),
                     &frm.CCXCckmOpaque );
@@ -2487,15 +2536,21 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
     }
 
 #ifdef FEATURE_WLAN_CCX
+    /* CCX Version IE will be included in reassociation request
+       when CCX is enabled on DUT through ini */
+    if (psessionEntry->pLimReAssocReq->isCCXFeatureIniEnabled)
+    {
+        PopulateDot11fCCXVersion(&frm.CCXVersion);
+    }
     // For CCX Associations fill the CCX IEs
-    if (psessionEntry->isCCXconnection)
+    if (psessionEntry->isCCXconnection &&
+        psessionEntry->pLimReAssocReq->isCCXFeatureIniEnabled)
     {
 #ifndef FEATURE_DISABLE_RM
         PopulateDot11fCCXRadMgmtCap(&frm.CCXRadMgmtCap);
 #endif
-        PopulateDot11fCCXVersion(&frm.CCXVersion);
     }
-#endif //FEATURE_WLAN_CCX 
+#endif //FEATURE_WLAN_CCX
 #endif //FEATURE_WLAN_CCX || FEATURE_WLAN_LFR
 
     // include WME EDCA IE as well
@@ -2528,14 +2583,14 @@ limSendReassocReqWithFTIEsMgmtFrame(tpAniSirGlobal     pMac,
                 {
                     tsrsIE.rates[0] = TSRS_11AG_RATE_6MBPS;
                 }
-                else 
+                else
                 {
                     tsrsIE.rates[0] = TSRS_11B_RATE_5_5MBPS;
                 }
                 PopulateDot11TSRSIE(pMac,&tsrsIE, &frm.CCXTrafStrmRateSet, sizeof(tANI_U8));
             }
         }
-#endif    
+#endif
     }
 
     if ( psessionEntry->htCapability &&
@@ -3369,7 +3424,7 @@ limSendAuthMgmtFrame(tpAniSirGlobal pMac,
        || ( psessionEntry->pePersona == VOS_P2P_CLIENT_MODE ) ||
          ( psessionEntry->pePersona == VOS_P2P_GO_MODE)
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
-       || ((NULL != pMac->ft.ftPEContext.pFTPreAuthReq) 
+       || ((NULL != pMac->ft.ftPEContext.pFTPreAuthReq)
            && ( SIR_BAND_5_GHZ == limGetRFBand(pMac->ft.ftPEContext.pFTPreAuthReq->preAuthchannelNum)))
 #endif
          )
@@ -3499,18 +3554,18 @@ eHalStatus limSendDisassocCnf(tpAniSirGlobal pMac)
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
         if  ( (psessionEntry->limSystemRole == eLIM_STA_ROLE ) && 
-                ( 
+                (
 #ifdef FEATURE_WLAN_CCX
-                 (psessionEntry->isCCXconnection ) || 
+                 (psessionEntry->isCCXconnection ) ||
 #endif
 #ifdef FEATURE_WLAN_LFR
                  (psessionEntry->isFastRoamIniFeatureEnabled ) ||
 #endif
                  (psessionEntry->is11Rconnection )) &&
-                (pMlmDisassocReq->reasonCode != 
+                (pMlmDisassocReq->reasonCode !=
                  eSIR_MAC_DISASSOC_DUE_TO_FTHANDOFF_REASON))
         {
-            PELOGE(limLog(pMac, LOGE, 
+            PELOGE(limLog(pMac, LOGE,
                    FL("FT Preauth Session (%p,%d) Cleanup"),
                    psessionEntry, psessionEntry->peSessionId););
             limFTCleanup(pMac);
@@ -3670,10 +3725,7 @@ limSendDisassocMgmtFrame(tpAniSirGlobal pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
     
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackDisassociation( pMac, &frm, pFrame +
@@ -3853,10 +3905,7 @@ limSendDeauthMgmtFrame(tpAniSirGlobal pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackDeAuth( pMac, &frm, pFrame +
@@ -4090,10 +4139,7 @@ limSendMeasReportFrame(tpAniSirGlobal             pMac,
     }
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackMeasurementReport( pMac, &frm, pFrame +
@@ -4216,10 +4262,7 @@ limSendTpcRequestFrame(tpAniSirGlobal pMac,
     }
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackTPCRequest( pMac, &frm, pFrame +
@@ -4350,10 +4393,7 @@ limSendTpcReportFrame(tpAniSirGlobal            pMac,
     }
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackTPCReport( pMac, &frm, pFrame +
@@ -4500,10 +4540,7 @@ limSendChannelSwitchMgmtFrame(tpAniSirGlobal pMac,
 #endif
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
     nStatus = dot11fPackChannelSwitch( pMac, &frm, pFrame +
@@ -4936,10 +4973,7 @@ tSirRetStatus limSendAddBAReq( tpAniSirGlobal pMac,
     sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-    if ( psessionEntry->limRmfEnabled )
-    {
-        pMacHdr->fc.wep = 1;
-    }
+    limSetProtectedBit(pMac, psessionEntry, pMlmAddBAReq->peerMacAddr, pMacHdr);
 #endif
 
     // Now, we're ready to "pack" the frames
@@ -5061,6 +5095,7 @@ tSirRetStatus limSendAddBARsp( tpAniSirGlobal pMac,
       frmAddBARsp.AddBAParameterSet.tid = pMlmAddBARsp->baTID;
       frmAddBARsp.AddBAParameterSet.policy = pMlmAddBARsp->baPolicy;
       frmAddBARsp.AddBAParameterSet.bufferSize = pMlmAddBARsp->baBufferSize;
+      frmAddBARsp.AddBAParameterSet.amsduSupported = psessionEntry->amsduSupportedInBA;
 
       // BA timeout
       // 0 - indicates no BA timeout
@@ -5141,10 +5176,7 @@ tSirRetStatus limSendAddBARsp( tpAniSirGlobal pMac,
       sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-      if ( psessionEntry->limRmfEnabled )
-      {
-        pMacHdr->fc.wep = 1;
-      }
+      limSetProtectedBit(pMac, psessionEntry, pMlmAddBARsp->peerMacAddr, pMacHdr);
 #endif
 
       // Now, we're ready to "pack" the frames
@@ -5342,10 +5374,7 @@ tSirRetStatus limSendDelBAInd( tpAniSirGlobal pMac,
       sirCopyMacAddr(pMacHdr->bssId,psessionEntry->bssId);
 
 #ifdef WLAN_FEATURE_11W
-      if ( psessionEntry->limRmfEnabled )
-      {
-        pMacHdr->fc.wep = 1;
-      }
+      limSetProtectedBit(pMac, psessionEntry, pMlmDelBAReq->peerMacAddr, pMacHdr);
 #endif
 
       // Now, we're ready to "pack" the frames
@@ -5509,10 +5538,7 @@ limSendNeighborReportRequestFrame(tpAniSirGlobal        pMac,
    sirCopyMacAddr( pMacHdr->bssId, psessionEntry->bssId );
 
 #ifdef WLAN_FEATURE_11W
-   if ( psessionEntry->limRmfEnabled )
-   {
-       pMacHdr->fc.wep = 1;
-   }
+   limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
    // Now, we're ready to "pack" the frames
@@ -5680,10 +5706,7 @@ limSendLinkReportActionFrame(tpAniSirGlobal        pMac,
    sirCopyMacAddr( pMacHdr->bssId, psessionEntry->bssId );
 
 #ifdef WLAN_FEATURE_11W
-   if ( psessionEntry->limRmfEnabled )
-   {
-       pMacHdr->fc.wep = 1;
-   }
+   limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
    // Now, we're ready to "pack" the frames
@@ -5873,10 +5896,7 @@ limSendRadioMeasureReportActionFrame(tpAniSirGlobal        pMac,
    sirCopyMacAddr( pMacHdr->bssId, psessionEntry->bssId );
 
 #ifdef WLAN_FEATURE_11W
-   if ( psessionEntry->limRmfEnabled )
-   {
-       pMacHdr->fc.wep = 1;
-   }
+   limSetProtectedBit(pMac, psessionEntry, peer, pMacHdr);
 #endif
 
    // Now, we're ready to "pack" the frames

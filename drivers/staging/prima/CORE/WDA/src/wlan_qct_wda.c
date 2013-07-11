@@ -183,7 +183,7 @@ static VOS_STATUS WDA_ProcessSetRssiFilterReq(tWDA_CbContext *pWDA, tSirSetRSSIF
 static VOS_STATUS WDA_ProcessUpdateScanParams(tWDA_CbContext *pWDA, tSirUpdateScanParams *pUpdateScanParams);
 #endif // FEATURE_WLAN_SCAN_PNO
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-VOS_STATUS WDA_ProcessStartRoamCandidatelookupReq(tWDA_CbContext *pWDA,tSirRoamOffloadScanReq *pRoamOffloadScanReqParams);
+VOS_STATUS WDA_ProcessRoamScanOffloadReq(tWDA_CbContext *pWDA,tSirRoamOffloadScanReq *pRoamOffloadScanReqParams);
 void WDA_RoamOffloadScanReqCallback(WDI_Status status, void* pUserData);
 void WDA_ConvertSirAuthToWDIAuth(WDI_AuthType *AuthType, v_U8_t csrAuthType);
 void WDA_ConvertSirEncToWDIEnc(WDI_EdType *EncrType, v_U8_t csrEncrType);
@@ -1478,6 +1478,61 @@ VOS_STATUS WDA_prepareConfigTLV(v_PVOID_t pVosContext,
 
    tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
                             + sizeof(tHalCfg) + tlvStruct->length) ;
+#ifdef FEATURE_WLAN_TDLS
+   /* QWLAN_HAL_CFG_TDLS_PUAPSD_MASK  */
+   tlvStruct->type = QWLAN_HAL_CFG_TDLS_PUAPSD_MASK;
+   tlvStruct->length = sizeof(tANI_U32);
+   configDataValue = (tANI_U32 *)(tlvStruct + 1);
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_QOS_WMM_UAPSD_MASK,
+                                            configDataValue ) != eSIR_SUCCESS)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+               "Failed to get value for WNI_CFG_TDLS_QOS_WMM_UAPSD_MASK");
+      goto handle_failure;
+   }
+   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
+                            + sizeof(tHalCfg) + tlvStruct->length) ;
+
+   /* QWLAN_HAL_CFG_TDLS_PUAPSD_BUFFER_STA_CAPABLE  */
+   tlvStruct->type = QWLAN_HAL_CFG_TDLS_PUAPSD_BUFFER_STA_CAPABLE;
+   tlvStruct->length = sizeof(tANI_U32);
+   configDataValue = (tANI_U32 *)(tlvStruct + 1);
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_BUF_STA_ENABLED,
+                                            configDataValue ) != eSIR_SUCCESS)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+               "Failed to get value for WNI_CFG_TDLS_BUF_STA_ENABLED");
+      goto handle_failure;
+   }
+   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
+                            + sizeof(tHalCfg) + tlvStruct->length) ;
+   /* QWLAN_HAL_CFG_TDLS_PUAPSD_INACTIVITY_TIME */
+   tlvStruct->type = QWLAN_HAL_CFG_TDLS_PUAPSD_INACTIVITY_TIME;
+   tlvStruct->length = sizeof(tANI_U32);
+   configDataValue = (tANI_U32 *)(tlvStruct + 1);
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_PUAPSD_INACT_TIME,
+                                            configDataValue ) != eSIR_SUCCESS)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+               "Failed to get value for WNI_CFG_TDLS_PUAPSD_INACT_TIME");
+      goto handle_failure;
+   }
+   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
+                            + sizeof(tHalCfg) + tlvStruct->length) ;
+   /* QWLAN_HAL_CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD_IN_SP */
+   tlvStruct->type = QWLAN_HAL_CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD_IN_SP;
+   tlvStruct->length = sizeof(tANI_U32);
+   configDataValue = (tANI_U32 *)(tlvStruct + 1);
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_RX_FRAME_THRESHOLD,
+                                            configDataValue ) != eSIR_SUCCESS)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+               "Failed to get value for WNI_CFG_TDLS_RX_FRAME_THRESHOLD");
+      goto handle_failure;
+   }
+   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
+                            + sizeof(tHalCfg) + tlvStruct->length) ;
+#endif
 
    wdiStartParams->usConfigBufferLen = (tANI_U8 *)tlvStruct - tlvStructStart ;
 #ifdef WLAN_DEBUG
@@ -3431,6 +3486,7 @@ VOS_STATUS WDA_ProcessAddStaSelfReq( tWDA_CbContext *pWDA, tpAddStaSelfParams pA
    }
    wdiAddStaSelfReq->wdiReqStatusCB = NULL;
    vos_mem_copy( wdiAddStaSelfReq->wdiAddSTASelfInfo.selfMacAddr, pAddStaSelfReq->selfMacAddr, 6);
+   wdiAddStaSelfReq->wdiAddSTASelfInfo.currDeviceMode = pAddStaSelfReq->currDeviceMode;
    /* Store Init Req pointer, as this will be used for response */
    /* store Params pass it to WDI */
    pWdaParams->pWdaContext = pWDA;
@@ -4865,7 +4921,6 @@ void WDA_GetStatsReqParamsCallback(
    pGetPEStatsRspParams->msgType = wdiGetStatsRsp->usMsgType;
    pGetPEStatsRspParams->msgLen = sizeof(tAniGetPEStatsRsp) + 
                    (wdiGetStatsRsp->usMsgLen - sizeof(WDI_GetStatsRspParamsType));
-   pGetPEStatsRspParams->msgLen  = wdiGetStatsRsp->usMsgLen + sizeof(tANI_U8);
 
   //Fill the Session Id Properly in PE
    pGetPEStatsRspParams->sessionId = 0;
@@ -6365,6 +6420,121 @@ VOS_STATUS WDA_ProcessSetP2PGONOAReq(tWDA_CbContext *pWDA,
    return CONVERT_WDI2VOS_STATUS(status);
 
 }
+
+#ifdef FEATURE_WLAN_TDLS
+/*
+ * FUNCTION: WDA_SetP2PGONOAReqParamsCallback
+ *  Free the memory. No need to send any response to PE in this case
+ */
+void WDA_SetTDLSLinkEstablishReqParamsCallback(WDI_SetTdlsLinkEstablishReqResp *wdiSetTdlsLinkEstablishReqRsp,
+                                               void* pUserData)
+{
+   tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   tWDA_CbContext *pWDA = NULL;
+   tTdlsLinkEstablishParams *pTdlsLinkEstablishParams;
+
+
+   VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+                                          "<------ %s " ,__func__);
+   if(NULL == pWdaParams)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+              "%s: pWdaParams received NULL", __func__);
+      VOS_ASSERT(0) ;
+      return ;
+   }
+   pWDA = (tWDA_CbContext *) pWdaParams->pWdaContext;
+
+   if(NULL == pWdaParams)
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+              "%s: pWdaParams received NULL", __func__);
+      VOS_ASSERT(0) ;
+      return ;
+   }
+   pTdlsLinkEstablishParams = (tTdlsLinkEstablishParams *)pWdaParams->wdaMsgParam ;
+   if( NULL == pTdlsLinkEstablishParams )
+   {
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                                          "%s: pTdlsLinkEstablishParams "
+                                          "received NULL " ,__func__);
+      VOS_ASSERT(0);
+      vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
+      vos_mem_free(pWdaParams);
+      return ;
+   }
+   pTdlsLinkEstablishParams->status = CONVERT_WDI2SIR_STATUS(
+                                               wdiSetTdlsLinkEstablishReqRsp->wdiStatus);
+   vos_mem_free(pWdaParams->wdaWdiApiMsgParam) ;
+   vos_mem_free(pWdaParams);
+   /* send response to UMAC*/
+   WDA_SendMsg(pWDA, WDA_SET_TDLS_LINK_ESTABLISH_REQ_RSP, pTdlsLinkEstablishParams, 0) ;
+
+   return ;
+}
+
+VOS_STATUS WDA_ProcessSetTdlsLinkEstablishReq(tWDA_CbContext *pWDA,
+                                              tTdlsLinkEstablishParams *pTdlsLinkEstablishParams)
+{
+    WDI_Status status = WDI_STATUS_SUCCESS ;
+    WDI_SetTDLSLinkEstablishReqParamsType *wdiSetTDLSLinkEstablishReqParam =
+                                      (WDI_SetTDLSLinkEstablishReqParamsType *)vos_mem_malloc(
+                                           sizeof(WDI_SetTDLSLinkEstablishReqParamsType)) ;
+    tWDA_ReqParams *pWdaParams = NULL;
+    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+               "------> %s " ,__func__);
+    if(NULL == wdiSetTDLSLinkEstablishReqParam)
+    {
+        VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                   "%s: VOS MEM Alloc Failure", __func__);
+        VOS_ASSERT(0);
+        return VOS_STATUS_E_NOMEM;
+    }
+    pWdaParams = (tWDA_ReqParams *)vos_mem_malloc(sizeof(tWDA_ReqParams)) ;
+    if(NULL == pWdaParams)
+    {
+        VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                   "%s: VOS MEM Alloc Failure", __func__);
+        vos_mem_free(pTdlsLinkEstablishParams);
+        vos_mem_free(wdiSetTDLSLinkEstablishReqParam);
+        VOS_ASSERT(0);
+        return VOS_STATUS_E_NOMEM;
+    }
+    wdiSetTDLSLinkEstablishReqParam->wdiTDLSLinkEstablishInfo.uStaIdx =
+                                                  pTdlsLinkEstablishParams->staIdx;
+    wdiSetTDLSLinkEstablishReqParam->wdiTDLSLinkEstablishInfo.uIsResponder =
+                                                  pTdlsLinkEstablishParams->isResponder;
+    wdiSetTDLSLinkEstablishReqParam->wdiTDLSLinkEstablishInfo.uUapsdQueues =
+                                                  pTdlsLinkEstablishParams->uapsdQueues;
+    wdiSetTDLSLinkEstablishReqParam->wdiTDLSLinkEstablishInfo.uMaxSp =
+                                                  pTdlsLinkEstablishParams->maxSp;
+    wdiSetTDLSLinkEstablishReqParam->wdiTDLSLinkEstablishInfo.uIsBufSta =
+                                                  pTdlsLinkEstablishParams->isBufsta;
+
+    wdiSetTDLSLinkEstablishReqParam->wdiReqStatusCB = NULL ;
+    /* Store msg pointer from PE, as this will be used for response */
+    pWdaParams->wdaMsgParam = (void *)pTdlsLinkEstablishParams ;
+    /* store Params pass it to WDI */
+    pWdaParams->wdaWdiApiMsgParam = (void *)wdiSetTDLSLinkEstablishReqParam ;
+    pWdaParams->pWdaContext = pWDA;
+
+    status = WDI_SetTDLSLinkEstablishReq(wdiSetTDLSLinkEstablishReqParam,
+                                         (WDI_SetTDLSLinkEstablishReqParamsRspCb)
+                                         WDA_SetTDLSLinkEstablishReqParamsCallback,
+                                         pWdaParams);
+    if(IS_WDI_STATUS_FAILURE(status))
+    {
+        VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                   "Failure in Set P2P GO NOA Req WDI API, free all the memory " );
+        vos_mem_free(pWdaParams->wdaWdiApiMsgParam) ;
+        vos_mem_free(pWdaParams->wdaMsgParam);
+        vos_mem_free(pWdaParams);
+    }
+    return CONVERT_WDI2VOS_STATUS(status);
+}
+#endif
+
+
 #ifdef WLAN_FEATURE_VOWIFI_11R
 /*
  * FUNCTION: WDA_AggrAddTSReqCallback
@@ -8347,6 +8517,8 @@ VOS_STATUS WDA_ProcessHostOffloadReq(tWDA_CbContext *pWDA,
          {
             wdiHostOffloadInfo->wdiNsOffloadParams.targetIPv6Addr2Valid = 0;
          }
+         wdiHostOffloadInfo->wdiNsOffloadParams.slotIdx =
+                        pHostOffloadParams->nsOffloadInfo.slotIdx;
          break;
 #endif //WLAN_NS_OFFLOAD
       default:
@@ -10916,9 +11088,9 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
       }
 #endif // FEATURE_WLAN_SCAN_PNO
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-      case WDA_START_ROAM_CANDIDATE_LOOKUP_REQ:
+      case WDA_ROAM_SCAN_OFFLOAD_REQ:
       {
-         WDA_ProcessStartRoamCandidatelookupReq(pWDA, (tSirRoamOffloadScanReq *)pMsg->bodyptr);
+         WDA_ProcessRoamScanOffloadReq(pWDA, (tSirRoamOffloadScanReq *)pMsg->bodyptr);
          break;
       }
 #endif
@@ -11003,6 +11175,13 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
       {
          WDA_ProcessExcludeUnecryptInd(pWDA, (tSirWlanExcludeUnencryptParam *)pMsg->bodyptr);
          break;
+      }
+#endif
+#ifdef FEATURE_WLAN_TDLS
+      case WDA_SET_TDLS_LINK_ESTABLISH_REQ:
+      {
+          WDA_ProcessSetTdlsLinkEstablishReq(pWDA, (tTdlsLinkEstablishParams *)pMsg->bodyptr);
+          break;
       }
 #endif
       default:
@@ -11266,6 +11445,32 @@ void WDA_lowLevelIndCallback(WDI_LowLevelIndType *wdiLowLevelInd,
           break;
       }
 
+#ifdef FEATURE_WLAN_TDLS
+      case WDI_TDLS_IND :
+      {
+          tSirTdlsInd  *pTdlsInd =
+             (tSirTdlsInd *)vos_mem_malloc(sizeof(tSirTdlsInd));
+
+          if (NULL == pTdlsInd)
+          {
+             VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                        "Memory allocation failure, "
+                        "WDI_TDLS_IND not forwarded");
+             break;
+          }
+          pTdlsInd->status            =
+                     wdiLowLevelInd->wdiIndicationData.wdiTdlsIndInfo.status;
+          pTdlsInd->assocId        =
+                     wdiLowLevelInd->wdiIndicationData.wdiTdlsIndInfo.assocId;
+          pTdlsInd->staIdx =
+                     wdiLowLevelInd->wdiIndicationData.wdiTdlsIndInfo.staIdx;
+          pTdlsInd->reasonCode    =
+                     wdiLowLevelInd->wdiIndicationData.wdiTdlsIndInfo.reasonCode;
+          WDA_SendMsg(pWDA, SIR_HAL_TDLS_IND,
+                                        (void *)pTdlsInd , 0) ;
+          break;
+      }
+#endif
       case WDI_P2P_NOA_ATTR_IND :
       {
          tSirP2PNoaAttr   *pP2pNoaAttr = 
@@ -11310,7 +11515,11 @@ void WDA_lowLevelIndCallback(WDI_LowLevelIndType *wdiLowLevelInd,
       case WDI_PREF_NETWORK_FOUND_IND:
       {
          vos_msg_t vosMsg;
-         tSirPrefNetworkFoundInd *pPrefNetworkFoundInd = (tSirPrefNetworkFoundInd *)vos_mem_malloc(sizeof(tSirPrefNetworkFoundInd));
+         v_U32_t size = sizeof(tSirPrefNetworkFoundInd) +
+             wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.frameLength;
+         tSirPrefNetworkFoundInd *pPrefNetworkFoundInd =
+             (tSirPrefNetworkFoundInd *)vos_mem_malloc(size);
+
          VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                               "Received WDI_PREF_NETWORK_FOUND_IND from WDI");
          if (NULL == pPrefNetworkFoundInd)
@@ -11322,7 +11531,7 @@ void WDA_lowLevelIndCallback(WDI_LowLevelIndType *wdiLowLevelInd,
          }
          /* Message Header */
          pPrefNetworkFoundInd->mesgType = eWNI_SME_PREF_NETWORK_FOUND_IND;
-         pPrefNetworkFoundInd->mesgLen = sizeof(*pPrefNetworkFoundInd);
+         pPrefNetworkFoundInd->mesgLen = size;
 
          /* Info from WDI Indication */ 
          pPrefNetworkFoundInd->ssId.length = 
@@ -11331,6 +11540,21 @@ void WDA_lowLevelIndCallback(WDI_LowLevelIndType *wdiLowLevelInd,
          vos_mem_copy( pPrefNetworkFoundInd->ssId.ssId, 
                   wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.ssId.sSSID, 
                   pPrefNetworkFoundInd->ssId.length);
+         if (NULL !=
+             wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.pData)
+         {
+            pPrefNetworkFoundInd->frameLength =
+                wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.frameLength;
+            vos_mem_copy( pPrefNetworkFoundInd->data,
+                wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.pData,
+                pPrefNetworkFoundInd->frameLength);
+            wpalMemoryFree(wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.pData);
+            wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.pData = NULL;
+         }
+         else
+         {
+            pPrefNetworkFoundInd->frameLength = 0;
+         }
          pPrefNetworkFoundInd ->rssi = wdiLowLevelInd->wdiIndicationData.wdiPrefNetworkFoundInd.rssi; 
          /* VOS message wrapper */
          vosMsg.type = eWNI_SME_PREF_NETWORK_FOUND_IND;
@@ -12246,22 +12470,22 @@ void WDA_ConvertSirEncToWDIEnc(WDI_EdType *EncrType, v_U8_t csrEncrType)
 }
 
 /*
- * FUNCTION: WDA_ProcessStartRoamCandidatelookupReq
+ * FUNCTION: WDA_ProcessRoamScanOffloadReq
  * Request to WDI to set Roam Offload Scan
  */
-VOS_STATUS WDA_ProcessStartRoamCandidatelookupReq(tWDA_CbContext *pWDA,
+VOS_STATUS WDA_ProcessRoamScanOffloadReq(tWDA_CbContext *pWDA,
                                                   tSirRoamOffloadScanReq *pRoamOffloadScanReqParams)
 {
    WDI_Status status;
-   WDI_RoamCandidateLookupReqParamsType *pwdiRoamCandidateLookupReqParams =
-   (WDI_RoamCandidateLookupReqParamsType *)vos_mem_malloc(sizeof(WDI_RoamCandidateLookupReqParamsType));
+   WDI_RoamScanOffloadReqParamsType *pwdiRoamScanOffloadReqParams =
+   (WDI_RoamScanOffloadReqParamsType *)vos_mem_malloc(sizeof(WDI_RoamScanOffloadReqParamsType));
    tWDA_ReqParams *pWdaParams ;
    v_U8_t csrAuthType;
    WDI_RoamNetworkType *pwdiRoamNetworkType;
    WDI_RoamOffloadScanInfo *pwdiRoamOffloadScanInfo;
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
               "------> %s " ,__func__);
-   if (NULL == pwdiRoamCandidateLookupReqParams)
+   if (NULL == pwdiRoamScanOffloadReqParams)
    {
       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                            "%s: VOS MEM Alloc Failure", __func__);
@@ -12274,15 +12498,15 @@ VOS_STATUS WDA_ProcessStartRoamCandidatelookupReq(tWDA_CbContext *pWDA,
       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
                            "%s: VOS MEM Alloc Failure", __func__);
       VOS_ASSERT(0);
-      vos_mem_free(pwdiRoamCandidateLookupReqParams);
+      vos_mem_free(pwdiRoamScanOffloadReqParams);
       return VOS_STATUS_E_NOMEM;
    }
 
    pwdiRoamNetworkType =
-   &pwdiRoamCandidateLookupReqParams->wdiRoamOffloadScanInfo.ConnectedNetwork;
+   &pwdiRoamScanOffloadReqParams->wdiRoamOffloadScanInfo.ConnectedNetwork;
    pwdiRoamOffloadScanInfo =
-   &pwdiRoamCandidateLookupReqParams->wdiRoamOffloadScanInfo;
-   vos_mem_zero (pwdiRoamCandidateLookupReqParams,sizeof(WDI_RoamCandidateLookupReqParamsType));
+   &pwdiRoamScanOffloadReqParams->wdiRoamOffloadScanInfo;
+   vos_mem_zero (pwdiRoamScanOffloadReqParams,sizeof(WDI_RoamScanOffloadReqParamsType));
    csrAuthType = pRoamOffloadScanReqParams->ConnectedNetwork.authentication;
    pwdiRoamOffloadScanInfo->RoamScanOffloadEnabled =
           pRoamOffloadScanReqParams->RoamScanOffloadEnabled;
@@ -12348,13 +12572,17 @@ VOS_STATUS WDA_ProcessStartRoamCandidatelookupReq(tWDA_CbContext *pWDA,
            pRoamOffloadScanReqParams->MDID.mdiePresent;
    pwdiRoamOffloadScanInfo->MDID.mobilityDomain =
            pRoamOffloadScanReqParams->MDID.mobilityDomain;
-   pwdiRoamCandidateLookupReqParams->wdiReqStatusCB = NULL;
+   pwdiRoamOffloadScanInfo->nProbes =
+           pRoamOffloadScanReqParams->nProbes;
+   pwdiRoamOffloadScanInfo->HomeAwayTime =
+           pRoamOffloadScanReqParams->HomeAwayTime;
+   pwdiRoamScanOffloadReqParams->wdiReqStatusCB = NULL;
    /* Store Params pass it to WDI */
-   pWdaParams->wdaWdiApiMsgParam = (void *)pwdiRoamCandidateLookupReqParams;
+   pWdaParams->wdaWdiApiMsgParam = (void *)pwdiRoamScanOffloadReqParams;
    pWdaParams->pWdaContext = pWDA;
    /* Store param pointer as passed in by caller */
    pWdaParams->wdaMsgParam = pRoamOffloadScanReqParams;
-   status = WDI_StartRoamCandidateLookupReq(pwdiRoamCandidateLookupReqParams,
+   status = WDI_RoamScanOffloadReq(pwdiRoamScanOffloadReqParams,
                            (WDI_RoamOffloadScanCb)WDA_RoamOffloadScanReqCallback, pWdaParams);
    if(IS_WDI_STATUS_FAILURE(status))
    {
@@ -12590,6 +12818,9 @@ VOS_STATUS WDA_ProcessUpdateScanParams(tWDA_CbContext *pWDA,
 void WDA_RoamOffloadScanReqCallback(WDI_Status status, void* pUserData)
 {
    tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   vos_msg_t vosMsg;
+   wpt_uint8 reason = 0;
+
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                                           "<------ %s " ,__func__);
     if (NULL == pWdaParams)
@@ -12603,6 +12834,7 @@ void WDA_RoamOffloadScanReqCallback(WDI_Status status, void* pUserData)
    {
       if ( pWdaParams->wdaWdiApiMsgParam != NULL )
       {
+         reason = ((WDI_RoamScanOffloadReqParamsType *)pWdaParams->wdaWdiApiMsgParam)->wdiRoamOffloadScanInfo.StartScanReason;
          vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
       }
       if ( pWdaParams->wdaMsgParam != NULL)
@@ -12612,6 +12844,20 @@ void WDA_RoamOffloadScanReqCallback(WDI_Status status, void* pUserData)
 
       vos_mem_free(pWdaParams) ;
    }
+   vosMsg.type = eWNI_SME_ROAM_SCAN_OFFLOAD_RSP;
+   vosMsg.bodyptr = NULL;
+   if (WDI_STATUS_SUCCESS != status)
+   {
+      reason = 0;
+   }
+   vosMsg.bodyval = reason;
+   if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MQ_ID_SME, (vos_msg_t*)&vosMsg))
+   {
+      /* free the mem and return */
+      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+                 "Failed to post the rsp to UMAC" ,__func__);
+   }
+
    return ;
 }
 #endif
@@ -13293,6 +13539,8 @@ VOS_STATUS WDA_ProcessSetPowerParamsReq(tWDA_CbContext *pWDA,
       pPowerParams->uEnableBET;
    pwdiSetPowerParamsReqInfo->wdiSetPowerParamsInfo.uBETInterval      = 
       pPowerParams->uBETInterval; 
+   pwdiSetPowerParamsReqInfo->wdiSetPowerParamsInfo.uMaxLIModulatedDTIM =
+      pPowerParams->uMaxLIModulatedDTIM;
    pwdiSetPowerParamsReqInfo->wdiReqStatusCB = WDA_SetPowerParamsReqCallback;
    pwdiSetPowerParamsReqInfo->pUserData = pWdaParams;
 

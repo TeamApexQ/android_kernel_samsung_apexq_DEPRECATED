@@ -2988,10 +2988,10 @@ LIM
 WNI_CFG_VHT_RX_HIGHEST_SUPPORTED_DATA_RATE  I    4    19
 V    RW    NP    
 LIM
-1    434   434
+0    390   0
 V    RW    NP    
 LIM
-1    434   434
+0    390   0
 
 *
 * Tx Highest supported data rate.
@@ -2999,10 +2999,10 @@ LIM
 WNI_CFG_VHT_TX_HIGHEST_SUPPORTED_DATA_RATE  I    4    19
 V    RW    NP    
 LIM
-1    434    434
+0    390    0
 V    RW    NP    
 LIM
-1    434    434
+0    390    0
 
 *
 * VHT Operation Information
@@ -3458,6 +3458,19 @@ LIM
 V    RW    NP  RESTART
 LIM
 0    0xff    0
+
+*
+* Delete all Rx BA sessions in 2.4 GHz
+* when BTC requests to disable agg.
+*
+WNI_CFG_DEL_ALL_RX_BA_SESSIONS_2_4_G_BTC I    4    7
+V    RW    NP
+LIM
+0    1    0
+V    RW    NP
+LIM
+0    1    0
+
 
 *
 * Valid Channel List
@@ -4485,3 +4498,50 @@ HAL
 V    RW    NP
 HAL
 1    255    3
+
+*
+*TDLS Station's UAPSD MASK Configuration
+*
+*
+*
+WNI_CFG_TDLS_QOS_WMM_UAPSD_MASK  I   4   7
+V    RW    NP
+LIM
+0    15    0
+V    RW    NP
+LIM
+0    15   0
+*
+*TDLS Stations Buffer STA Capability
+*
+*
+*
+WNI_CFG_TDLS_BUF_STA_ENABLED  I   4   7
+V    RW    NP
+LIM
+0    1    0
+V    RW    NP
+LIM
+0    1    0
+*TDLS Stations PUAPSD Inactivity Timer
+*
+*
+*
+WNI_CFG_TDLS_PUAPSD_INACT_TIME  I   4   7
+V    RW    NP
+LIM
+0    10    0
+V    RW    NP
+LIM
+0    10    0
+*TDLS Stations PUAPSD RX Frame Threshold
+*
+*
+*
+WNI_CFG_TDLS_RX_FRAME_THRESHOLD  I   4   7
+V    RW    NP
+LIM
+10   20    10
+V    RW    NP
+LIM
+10   20    10
