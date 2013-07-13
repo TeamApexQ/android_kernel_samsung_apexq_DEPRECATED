@@ -1108,9 +1108,9 @@ static struct pvs_table * __init select_freq_plan(u32 pte_efuse_phys,
 	tbl_idx = get_pvs_bin(pte_efuse_val);
 
 #if defined(CONFIG_MACH_APEXQ)
-	if (global_sec_pvs_value == 0xfafa) {
+//	if (global_sec_pvs_value == 0xfafa) {
 		tbl_idx = 0;
-	}
+//	}
 #endif 
 
 	return &pvs_tables[bin_idx][tbl_idx];
