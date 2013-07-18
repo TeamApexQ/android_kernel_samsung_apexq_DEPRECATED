@@ -217,7 +217,12 @@ static int sec_bat_check_cable_callback(void)
 	 * Add msleep to fix the this issue.
 	 */
 	msleep(500);
-	
+
+/* Disable chargers that simply apply current to vbus and do nothing else.
+Even very cheap modern chargers short or place a resistor across D+ and D-
+which is enough to trigger the phone to charge. Revisit this once we
+determine a more reliable way to detect bare voltage across vbus */
+#if 0
 	if (current_cable_type ==
 		POWER_SUPPLY_TYPE_BATTERY &&
 		gpio_get_value_cansleep(
@@ -237,6 +242,7 @@ static int sec_bat_check_cable_callback(void)
 		pr_info("%s : VBUS OUT\n", __func__);
 		return POWER_SUPPLY_TYPE_BATTERY;
 	}
+#endif
 
 	return current_cable_type;
 }
