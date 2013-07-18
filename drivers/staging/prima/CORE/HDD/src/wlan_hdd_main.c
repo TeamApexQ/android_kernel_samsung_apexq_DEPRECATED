@@ -1546,44 +1546,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            pHddCtx->cfg_ini->nRoamIntraBand = val;
            sme_setRoamIntraBand((tHalHandle)(pHddCtx->hHal), val);
        }
-       else if (strncmp(command, "SETWESMODE", 10) == 0)
-       {
-           tANI_U8 *value = command;
-           tANI_BOOLEAN wesMode = CFG_ENABLE_WES_MODE_NAME_DEFAULT;
-
-           /* Move pointer to ahead of SETWESMODE<delimiter> */
-           value = value + 11;
-           /* Convert the value from ascii to integer */
-           ret = kstrtou8(value, 10, &wesMode);
-           if (ret < 0)
-           {
-               /* If the input value is greater than max value of datatype, then also
-                  kstrtou8 fails */
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                      "%s: kstrtou8 failed range [%d - %d]", __func__,
-                      CFG_ENABLE_WES_MODE_NAME_MIN,
-                      CFG_ENABLE_WES_MODE_NAME_MAX);
-               ret = -EINVAL;
-               goto exit;
-           }
-
-           if ((wesMode < CFG_ENABLE_WES_MODE_NAME_MIN) ||
-               (wesMode > CFG_ENABLE_WES_MODE_NAME_MAX))
-           {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                      "WES Mode value %d is out of range"
-                      " (Min: %d Max: %d)", wesMode,
-                      CFG_ENABLE_WES_MODE_NAME_MIN,
-                      CFG_ENABLE_WES_MODE_NAME_MAX);
-               ret = -EINVAL;
-               goto exit;
-           }
-           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                      "%s: Received Command to Set WES Mode rssi diff = %d", __func__, wesMode);
-
-           pHddCtx->cfg_ini->isWESModeEnabled = wesMode;
-           sme_UpdateWESMode((tHalHandle)(pHddCtx->hHal), wesMode);
-       }
        else if (strncmp(command, "GETROAMINTRABAND", 16) == 0)
        {
            tANI_U16 val = sme_getRoamIntraBand((tHalHandle)(pHddCtx->hHal));
@@ -1592,21 +1554,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
            /* value is interms of msec */
            len = snprintf(extra, sizeof(extra), "%s %d", "GETROAMINTRABAND", val);
-           if (copy_to_user(priv_data.buf, &extra, len + 1))
-           {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                  "%s: failed to copy data to user buffer", __func__);
-               ret = -EFAULT;
-               goto exit;
-           }
-       }
-       else if (strncmp(priv_data.buf, "GETWESMODE", 10) == 0)
-       {
-           tANI_BOOLEAN wesMode = sme_GetWESMode((tHalHandle)(pHddCtx->hHal));
-           char extra[32];
-           tANI_U8 len = 0;
-
-           len = snprintf(extra, sizeof(extra), "%s %d", command, wesMode);
            if (copy_to_user(priv_data.buf, &extra, len + 1))
            {
                VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
@@ -1751,18 +1698,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            tCsrHandoffRequest handoffInfo;
 #endif
            hdd_station_ctx_t *pHddStaCtx = NULL;
-           tANI_BOOLEAN wesMode = eANI_BOOLEAN_FALSE;
            pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-
-           wesMode = sme_GetWESMode((tHalHandle)(pHddCtx->hHal));
-
-           /* Reassoc command is allowed only if WES mode is enabled */
-           if (!wesMode)
-           {
-               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s:WES Mode is not enabled(%d)",__func__, wesMode);
-               ret = -EINVAL;
-               goto exit;
-           }
 
            /* if not associated, no need to proceed with reassoc */
            if (eConnectionState_Associated != pHddStaCtx->conn_info.connState)
@@ -4936,6 +4872,21 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
    // all scans will be cancelled.
    hdd_abort_mac_scan( pHddCtx );
 
+   //Stop the timer if already running
+   if (VOS_TIMER_STATE_RUNNING ==
+           vos_timer_getCurrentState(&pHddCtx->hdd_p2p_go_conn_is_in_progress))
+   {
+       vos_timer_stop(&pHddCtx->hdd_p2p_go_conn_is_in_progress);
+   }
+
+   // Destroy hdd_p2p_go_conn_is_in_progress timer
+   if (!VOS_IS_STATUS_SUCCESS(vos_timer_destroy(
+                         &pHddCtx->hdd_p2p_go_conn_is_in_progress)))
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,
+           "%s: Cannot deallocate p2p connection timer", __func__);
+   }
+
    //Disable IMPS/BMPS as we do not want the device to enter any power
    //save mode during shutdown
    sme_DisablePowerSave(pHddCtx->hHal, ePMC_IDLE_MODE_POWER_SAVE);
@@ -5374,7 +5325,6 @@ static boolean hdd_is_5g_supported(hdd_context_t * pHddCtx)
    /* If wcnss_wlan_iris_xo_mode() returns WCNSS_XO_48MHZ(1);
     * then hardware support 5Ghz.
    */
-#if !defined(CONFIG_MACH_APEXQ)
    if (WCNSS_XO_48MHZ == wcnss_wlan_iris_xo_mode())
    {
       hddLog(VOS_TRACE_LEVEL_INFO, "%s: Hardware supports 5Ghz", __func__);
@@ -5386,9 +5336,6 @@ static boolean hdd_is_5g_supported(hdd_context_t * pHddCtx)
                     __func__);
       return false;
    }
-#else
-   return true;
-#endif
 }
 
 
@@ -5919,10 +5866,16 @@ int hdd_wlan_startup(struct device *dev )
 
    vos_set_load_unload_in_progress(VOS_MODULE_ID_VOSS, FALSE);
    hdd_allow_suspend();
-   
+
    // Initialize the restart logic
    wlan_hdd_restart_init(pHddCtx);
 
+   if (!VOS_IS_STATUS_SUCCESS( vos_timer_init( &pHddCtx->hdd_p2p_go_conn_is_in_progress,
+         VOS_TIMER_TYPE_SW, wlan_hdd_p2p_go_connection_in_progresscb, pAdapter) ) )
+   {
+       hddLog(VOS_TRACE_LEVEL_ERROR,
+           "%s: vos timer init failed for hdd_p2p_go_conn_is_in_progress", __func__);
+   }
    goto success;
 
 err_nl_srv:
