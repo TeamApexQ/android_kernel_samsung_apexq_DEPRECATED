@@ -306,9 +306,11 @@ static bool sec_bat_check_callback(void)
 	}
 
 	pm8921_enable_batt_therm(0);
+#if defined(CONFIG_SEC_DEBUG_FUELGAUGE_LOG)
 	pr_info("%s : battery is %s (%d time%c)\n",
 		__func__, present ? "present" : "absent",
 		i, (i == 1) ? ' ' : 's');
+#endif
 
 	return present ? true : false;
 }
@@ -537,8 +539,8 @@ static sec_battery_platform_data_t sec_battery_pdata = {
 
 	.full_check_type = SEC_BATTERY_FULLCHARGED_CHGPSY,
 	.full_check_count = 3,
-	.full_check_adc_1st = 20000,
-	.full_check_adc_2nd = 20000,
+//	.full_check_adc_1st = 20000,
+//	.full_check_adc_2nd = 20000,
 	.chg_gpio_full_check = 0,
 	.chg_polarity_full_check = 1,
 	.full_condition_type = 0,
