@@ -110,6 +110,11 @@
 ( \
    (((pMac)->roam.configParam.isRoamOffloadScanEnabled)?eANI_BOOLEAN_TRUE:eANI_BOOLEAN_FALSE) \
 )
+
+#define CSR_IS_FASTROAM_IN_CONCURRENCY_INI_FEATURE_ENABLED( pMac ) \
+( \
+   (((pMac)->roam.configParam.bFastRoamInConIniFeatureEnabled)?eANI_BOOLEAN_TRUE:eANI_BOOLEAN_FALSE) \
+)
 #endif
 
 //Support for "Fast roaming" (i.e., CCX, LFR, or 802.11r.)
@@ -457,10 +462,12 @@ typedef struct tagWmStatusChangeCmd
 
 }tWmStatusChangeCmd;
 
+
 typedef struct tagAddStaForSessionCmd
 {
    //Session self mac addr
    tSirMacAddr selfMacAddr;
+   tVOS_CON_MODE currDeviceMode;
 }tAddStaForSessionCmd;
 
 typedef struct tagDelStaForSessionCmd
@@ -574,14 +581,17 @@ typedef struct tagCsrConfig
 
     tANI_U32  nActiveMinChnTimeBtc;     //in units of milliseconds
     tANI_U32  nActiveMaxChnTimeBtc;     //in units of milliseconds
+    tANI_U8   disableAggWithBtc;
 #ifdef WLAN_AP_STA_CONCURRENCY
     tANI_U32  nPassiveMinChnTimeConc;    //in units of milliseconds
     tANI_U32  nPassiveMaxChnTimeConc;    //in units of milliseconds
     tANI_U32  nActiveMinChnTimeConc;     //in units of milliseconds
     tANI_U32  nActiveMaxChnTimeConc;     //in units of milliseconds
     tANI_U32  nRestTimeConc;             //in units of milliseconds
-    tANI_U8   nNumChanCombinedConc;      //number of channels combined
-                                         //in each split scan operation
+    tANI_U8   nNumStaChanCombinedConc;   //number of channels combined for
+                                         //Sta in each split scan operation
+    tANI_U8   nNumP2PChanCombinedConc;   //number of channels combined for
+                                         //P2P in each split scan operation
 #endif
 
     tANI_BOOLEAN IsIdleScanEnabled;
@@ -599,9 +609,10 @@ typedef struct tagCsrConfig
 #endif
 
 #ifdef FEATURE_WLAN_LFR
-    tANI_U8   isFastRoamIniFeatureEnabled;
+    tANI_U8      isFastRoamIniFeatureEnabled;
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-    tANI_U8   isRoamOffloadScanEnabled;
+    tANI_U8      isRoamOffloadScanEnabled;
+    tANI_BOOLEAN bFastRoamInConIniFeatureEnabled;
 #endif
 #endif
 
@@ -615,8 +626,9 @@ typedef struct tagCsrConfig
     tANI_U8       nImmediateRoamRssiDiff;
     tANI_BOOLEAN  nRoamPrefer5GHz;
     tANI_BOOLEAN  nRoamIntraBand;
-    tANI_BOOLEAN  isWESModeEnabled;
     tANI_BOOLEAN  nRoamScanControl;
+    tANI_U8       nProbes;
+    tANI_U16      nRoamScanHomeAwayTime;
 #endif
 
 #ifdef WLAN_FEATURE_NEIGHBOR_ROAMING
@@ -638,6 +650,7 @@ typedef struct tagCsrConfig
     tANI_U32  nVhtChannelWidth;
     tANI_U8   txBFEnable;
     tANI_U8   txBFCsnValue;
+    tANI_BOOLEAN enableVhtFor24GHz;
 #endif
     tANI_U8   txLdpcEnable;
 
@@ -972,7 +985,6 @@ typedef struct tagCsrRoamStruct
 #endif
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
     tANI_U8        RoamRssiDiff;
-    tANI_BOOLEAN   isWESModeEnabled;
 #endif
 }tCsrRoamStruct;
 
@@ -1311,7 +1323,8 @@ tANI_BOOLEAN csrIsSetKeyAllowed(tpAniSirGlobal pMac, tANI_U32 sessionId);
 void csrSetOppositeBandChannelInfo( tpAniSirGlobal pMac );
 void csrConstructCurrentValidChannelList( tpAniSirGlobal pMac, tDblLinkList *pChannelSetList,
                                             tANI_U8 *pChannelList, tANI_U8 bSize, tANI_U8 *pNumChannels );
-
+eHalStatus csrScanSavePreferredNetworkFound(tpAniSirGlobal pMac,
+            tSirPrefNetworkFoundInd *pPrefNetworkFoundInd);
 #endif
 
 #ifdef WLAN_FEATURE_VOWIFI_11R
@@ -1339,6 +1352,8 @@ VOS_STATUS csrAddToChannelListFront( tANI_U8 *pChannelList, int  numChannels, tA
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
 eHalStatus csrScanRequestLfrResult(tpAniSirGlobal pMac, tANI_U32 sessionId,
                                    csrScanCompleteCallback callback, void *pContext);
+eHalStatus csrRoamOffloadScanRspHdlr(tpAniSirGlobal pMac, tANI_U8 reason);
+eHalStatus csrHandoffRequest(tpAniSirGlobal pMac, tCsrHandoffRequest *pHandoffInfo);
 #endif
 tANI_BOOLEAN csrRoamIsStaMode(tpAniSirGlobal pMac, tANI_U32 sessionId);
 #endif

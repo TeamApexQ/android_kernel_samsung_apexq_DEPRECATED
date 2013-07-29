@@ -1,52 +1,31 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
- */
-/*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
- */
-
+  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+  *
+  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
+  *
+  *
+  * Permission to use, copy, modify, and/or distribute this software for
+  * any purpose with or without fee is hereby granted, provided that the
+  * above copyright notice and this permission notice appear in all
+  * copies.
+  *
+  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+  * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
+  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  * PERFORMANCE OF THIS SOFTWARE.
+*/
 #ifdef WLAN_FEATURE_VOWIFI_11R
 /**=========================================================================
   
   \brief implementation for PE 11r VoWiFi FT Protocol 
   
-   Copyright 2008 (c) Qualcomm, Incorporated.  All Rights Reserved.
+   Copyright 2008 (c) Qualcomm Technologies, Inc.  All Rights Reserved.
    
-   Qualcomm Confidential and Proprietary.
+   Qualcomm Technologies Confidential and Proprietary.
   
   ========================================================================*/
 
@@ -70,6 +49,7 @@
 #define LIM_FT_RIC_BA_SSN                       1
 #define LIM_FT_RIC_BA_DIALOG_TOKEN_TID_0         248
 #define LIM_FT_RIC_DESCRIPTOR_RESOURCE_TYPE_BA  1
+#define LIM_FT_RIC_DESCRIPTOR_MAX_VAR_DATA_LEN   255
 
 /*--------------------------------------------------------------------------
   Initialize the FT variables. 
@@ -293,6 +273,9 @@ int limProcessFTPreAuthReq(tpAniSirGlobal pMac, tpSirMsgQ pMsg)
         pMac->ft.ftPEContext.pFTPreAuthReq = NULL;	
         return TRUE;
     }
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+        limDiagEventReport(pMac, WLAN_PE_DIAG_PRE_AUTH_REQ_EVENT, psessionEntry, 0, 0);
+#endif
 
     // Dont need to suspend if APs are in same channel
     if (psessionEntry->currentOperChannel != pMac->ft.ftPEContext.pFTPreAuthReq->preAuthchannelNum) 
@@ -556,7 +539,7 @@ tSirRetStatus limFTPrepareAddBssReq( tpAniSirGlobal pMac,
                              false,pftSessionEntry,&pBeaconStruct->VHTCaps);
 #else
         limPopulateOwnRateSet(pMac, &pAddBssParams->staContext.supportedRates, 
-                                                    pBeaconStruct->HTCaps.supportedMCSSet, false,pftSessionEntry);
+                                                    beaconStruct.HTCaps.supportedMCSSet, false,pftSessionEntry);
 #endif
         limFillSupportedRatesInfo(pMac, NULL, &pAddBssParams->staContext.supportedRates,pftSessionEntry);
 
@@ -805,6 +788,8 @@ void limPerformPostFTPreAuthAndChannelChange(tpAniSirGlobal pMac, eHalStatus sta
 tSirRetStatus limCreateRICBlockAckIE(tpAniSirGlobal pMac, tANI_U8 tid, tCfgTrafficClass *pTrafficClass, 
                                                                     tANI_U8 *ric_ies, tANI_U32 *ieLength)
 {
+    /* BlockACK + RIC is not supported now, TODO later to support this */
+#if 0
     tDot11fIERICDataDesc ricIe;
     tDot11fFfBAStartingSequenceControl baSsnControl;
     tDot11fFfAddBAParameterSet baParamSet;
@@ -827,23 +812,25 @@ tSirRetStatus limCreateRICBlockAckIE(tpAniSirGlobal pMac, tANI_U8 tid, tCfgTraff
     vos_mem_copy((v_VOID_t *)&baTimeout, (v_VOID_t *)&pTrafficClass->tuTxBAWaitTimeout, sizeof(baTimeout));
     baSsnControl.fragNumber = 0;
     baSsnControl.ssn = LIM_FT_RIC_BA_SSN;
-    if ( ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
+    if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfAddBAParameterSet(pMac, &baParamSet, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
         //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baParamSet, sizeof(tDot11fFfAddBAParameterSet));
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfAddBAParameterSet);
     }
-
-    if ( ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
+    if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfBATimeout(pMac, &baTimeout, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
         //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baTimeout, sizeof(tDot11fFfBATimeout));
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfBATimeout);
     }
-    if ( ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
+    if (ricIe.RICDescriptor.num_variableData < sizeof (ricIe.RICDescriptor.variableData)) {
         dot11fPackFfBAStartingSequenceControl(pMac, &baSsnControl, &ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData]);
         //vos_mem_copy(&ricIe.RICDescriptor.variableData[ricIe.RICDescriptor.num_variableData], &baSsnControl, sizeof(tDot11fFfBAStartingSequenceControl));
         ricIe.RICDescriptor.num_variableData += sizeof(tDot11fFfBAStartingSequenceControl);
     }
     return (tSirRetStatus) dot11fPackIeRICDataDesc(pMac, &ricIe, ric_ies, sizeof(tDot11fIERICDataDesc), ieLength);
+#endif
+
+    return eSIR_FAILURE;
 }
 
 tSirRetStatus limFTFillRICBlockAckInfo(tpAniSirGlobal pMac, tANI_U8 *ric_ies, tANI_U32 *ric_ies_length)
@@ -968,6 +955,10 @@ void limPostFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
 #if defined WLAN_FEATURE_VOWIFI_11R_DEBUG
     PELOGE(limLog( pMac, LOGE, "Posted Auth Rsp to SME with status of 0x%x", status);)
 #endif
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+    if( status == eHAL_STATUS_SUCCESS )
+        limDiagEventReport(pMac, WLAN_PE_DIAG_PREAUTH_DONE, psessionEntry, status, 0);
+#endif
     limSysProcessMmhMsgApi(pMac, &mmhMsg,  ePROT);
 }
 
@@ -988,6 +979,9 @@ void limHandleFTPreAuthRsp(tpAniSirGlobal pMac, tSirRetStatus status,
     tpPESession      pftSessionEntry;
     tANI_U8 sessionId;
     tpSirBssDescription  pbssDescription;
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+    limDiagEventReport(pMac, WLAN_PE_DIAG_PRE_AUTH_RSP_EVENT, psessionEntry, (tANI_U16)status, 0);
+#endif
 
     // Save the status of pre-auth
     pMac->ft.ftPEContext.ftPreAuthStatus = status; 
@@ -1080,6 +1074,9 @@ void limProcessMlmFTReassocReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf,
     psessionEntry->smeSessionId = smeSessionId;
     psessionEntry->transactionId = transactionId;
 
+#ifdef FEATURE_WLAN_DIAG_SUPPORT_LIM //FEATURE_WLAN_DIAG_SUPPORT
+    limDiagEventReport(pMac, WLAN_PE_DIAG_REASSOCIATING, psessionEntry, 0, 0);
+#endif
 
 
     if( eHAL_STATUS_SUCCESS != palAllocateMemory( pMac->hHdd, (void **)&pMlmReassocReq,
@@ -1234,32 +1231,72 @@ void limProcessFTPreauthRspTimeout(tpAniSirGlobal pMac)
  *------------------------------------------------------------------*/
 tANI_BOOLEAN limProcessFTUpdateKey(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf )
 {
-   tAddBssParams * pAddBssParams;
-   tSirFTUpdateKeyInfo * pKeyInfo;
-   tANI_U32 val = 0;
+    tAddBssParams * pAddBssParams;
+    tSirFTUpdateKeyInfo * pKeyInfo;
+    tANI_U32 val = 0;
 
-   /* Sanity Check */
-   if( pMac == NULL || pMsgBuf == NULL )
-   {
-      return TRUE;
-   }
+    /* Sanity Check */
+    if( pMac == NULL || pMsgBuf == NULL )
+    {
+        return TRUE;
+    }
+    if(pMac->ft.ftPEContext.pAddBssReq == NULL)
+    {
+        limLog( pMac, LOGE,
+                FL( "pAddBssReq is NULL" ));
+        return TRUE;
+    }
 
-   pAddBssParams = pMac->ft.ftPEContext.pAddBssReq;
-   pKeyInfo = (tSirFTUpdateKeyInfo *)pMsgBuf;
+    pAddBssParams = pMac->ft.ftPEContext.pAddBssReq;
+    pKeyInfo = (tSirFTUpdateKeyInfo *)pMsgBuf;
 
-   /* Store the key information in the ADD BSS parameters */
-   pAddBssParams->extSetStaKeyParamValid = 1;
-   pAddBssParams->extSetStaKeyParam.encType = pKeyInfo->keyMaterial.edType;
-   palCopyMemory( pMac->hHdd, (tANI_U8 *) &pAddBssParams->extSetStaKeyParam.key,
+    /* Store the key information in the ADD BSS parameters */
+    pAddBssParams->extSetStaKeyParamValid = 1;
+    pAddBssParams->extSetStaKeyParam.encType = pKeyInfo->keyMaterial.edType;
+    palCopyMemory( pMac->hHdd, (tANI_U8 *) &pAddBssParams->extSetStaKeyParam.key,
                   (tANI_U8 *) &pKeyInfo->keyMaterial.key, sizeof( tSirKeys ));
-  if(eSIR_SUCCESS != wlan_cfgGetInt(pMac, WNI_CFG_SINGLE_TID_RC, &val))
-  {
-     limLog( pMac, LOGP, FL( "Unable to read WNI_CFG_SINGLE_TID_RC" ));
-  }
+    if(eSIR_SUCCESS != wlan_cfgGetInt(pMac, WNI_CFG_SINGLE_TID_RC, &val))
+    {
+        limLog( pMac, LOGP, FL( "Unable to read WNI_CFG_SINGLE_TID_RC" ));
+    }
 
-  pAddBssParams->extSetStaKeyParam.singleTidRc = val;    
+    pAddBssParams->extSetStaKeyParam.singleTidRc = val;
+    PELOG1(limLog(pMac, LOG1, FL("Key valid %d"),
+                pAddBssParams->extSetStaKeyParamValid,
+                pAddBssParams->extSetStaKeyParam.key[0].keyLength);)
 
-  return TRUE;   
+    pAddBssParams->extSetStaKeyParam.staIdx = 0;
+
+    PELOG1(limLog(pMac, LOG1,
+         FL("BSSID = %02X-%02X-%02X-%02X-%02X-%02X"),
+         pKeyInfo->bssId[0], pKeyInfo->bssId[1],
+         pKeyInfo->bssId[2], pKeyInfo->bssId[3],
+         pKeyInfo->bssId[4], pKeyInfo->bssId[5]);)
+
+    if(pAddBssParams->extSetStaKeyParam.key[0].keyLength == 16)
+    {
+        PELOG1(limLog(pMac, LOG1,
+        FL("BSS key = %02X-%02X-%02X-%02X-%02X-%02X-%02X- "
+        "%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X"),
+        pAddBssParams->extSetStaKeyParam.key[0].key[0],
+        pAddBssParams->extSetStaKeyParam.key[0].key[1],
+        pAddBssParams->extSetStaKeyParam.key[0].key[2],
+        pAddBssParams->extSetStaKeyParam.key[0].key[3],
+        pAddBssParams->extSetStaKeyParam.key[0].key[4],
+        pAddBssParams->extSetStaKeyParam.key[0].key[5],
+        pAddBssParams->extSetStaKeyParam.key[0].key[6],
+        pAddBssParams->extSetStaKeyParam.key[0].key[7],
+        pAddBssParams->extSetStaKeyParam.key[0].key[8],
+        pAddBssParams->extSetStaKeyParam.key[0].key[9],
+        pAddBssParams->extSetStaKeyParam.key[0].key[10],
+        pAddBssParams->extSetStaKeyParam.key[0].key[11],
+        pAddBssParams->extSetStaKeyParam.key[0].key[12],
+        pAddBssParams->extSetStaKeyParam.key[0].key[13],
+        pAddBssParams->extSetStaKeyParam.key[0].key[14],
+        pAddBssParams->extSetStaKeyParam.key[0].key[15]);)
+    }
+
+    return TRUE;
 }
 
 tSirRetStatus

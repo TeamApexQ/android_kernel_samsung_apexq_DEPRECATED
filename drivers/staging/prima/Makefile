@@ -13,6 +13,9 @@ PANIC_ON_BUG := 0
 #Re-enable wifi on WDI timeout
 RE_ENABLE_WIFI_ON_WDI_TIMEOUT := 0
 
+#Flag to enable TDLS feature
+#CONFIG_QCOM_TDLS := y
+
 ifeq ($(CONFIG_CFG80211),y)
 HAVE_CFG80211 := 1
 else
@@ -471,14 +474,15 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DFEATURE_WLAN_SCAN_PNO \
 		-DWLAN_FEATURE_PACKET_FILTERING \
 		-DWLAN_FEATURE_VOWIFI \
+		-DWLAN_FEATURE_11AC \
 		-DWLAN_FEATURE_P2P_DEBUG \
 		-DWLAN_ENABLE_AGEIE_ON_SCAN_RESULTS \
 		-DWLANTL_DEBUG\
 		-DWLAN_ACTIVEMODE_OFFLOAD_FEATURE \
         	-DWLAN_FEATURE_HOLD_RX_WAKELOCK \
 		-DWLAN_SOFTAP_VSTA_FEATURE \
-                -DWLAN_FEATURE_ROAM_SCAN_OFFLOAD
-#		-DWLAN_FEATURE_11AC \
+                -DWLAN_FEATURE_ROAM_SCAN_OFFLOAD \
+                -DWLAN_FEATURE_GTK_OFFLOAD
 
 ifneq ($(CONFIG_PRONTO_WLAN),)
 CDEFINES += -DWCN_PRONTO
@@ -515,7 +519,9 @@ endif
 #normally, TDLS negative behavior is not needed
 ifeq ($(CONFIG_QCOM_TDLS),y)
 CDEFINES += -DFEATURE_WLAN_TDLS
+ifeq ($(BUILD_DEBUG_VERSION),1)
 CDEFINES += -DWLAN_FEATURE_TDLS_DEBUG
+endif
 CDEFINES += -DCONFIG_TDLS_IMPLICIT
 #CDEFINES += -DFEATURE_WLAN_TDLS_NEGATIVE
 #Code under FEATURE_WLAN_TDLS_INTERNAL is ported from volans, This code
@@ -581,13 +587,13 @@ ifeq ($(RE_ENABLE_WIFI_ON_WDI_TIMEOUT),1)
 CDEFINES += -DWDI_RE_ENABLE_WIFI_ON_WDI_TIMEOUT
 endif
 
-ifeq ($(KERNEL_BUILD),1)
-CDEFINES += -DWLAN_OPEN_SOURCE
-endif
+# ifeq ($(KERNEL_BUILD),1)
+# CDEFINES += -DWLAN_OPEN_SOURCE
+# endif
 
-ifeq ($(findstring opensource, $(WLAN_ROOT)), opensource)
+# ifeq ($(findstring opensource, $(WLAN_ROOT)), opensource)
 CDEFINES += -DWLAN_OPEN_SOURCE
-endif
+# endif
 
 # Fix build for GCC 4.7
 EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function

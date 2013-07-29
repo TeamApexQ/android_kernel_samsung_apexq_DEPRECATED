@@ -56,11 +56,7 @@
 #include <mach/board.h>
 #include <mach/msm_iomap.h>
 #include <mach/msm_spi.h>
-#ifdef CONFIG_USB_MSM_OTG_72K
-#include <mach/msm_hsusb.h>
-#else
 #include <linux/usb/msm_hsusb.h>
-#endif
 #include <linux/usb/android.h>
 #include <mach/usbdiag.h>
 #include <mach/socinfo.h>
@@ -113,9 +109,6 @@
 #endif
 #ifdef CONFIG_PM8921_SEC_CHARGER
 #include <linux/mfd/pm8xxx/pm8921-sec-charger.h>
-#endif
-#ifdef CONFIG_BATTERY_MAX17040
-#include <linux/max17040_battery.h>
 #endif
 #if defined(CONFIG_KEYBOARD_ADP5588) || defined(CONFIG_KEYBOARD_ADP5588_MODULE)
 #include <linux/i2c/adp5588.h>
@@ -1656,70 +1649,6 @@ static struct i2c_board_info mhl_i2c_board_info[] = {
 };
 #endif
 
-#ifdef CONFIG_BATTERY_MAX17040
-void max17040_hw_init(void)
-{
-	gpio_tlmm_config(GPIO_CFG(GPIO_FUELGAUGE_I2C_SCL, 0, GPIO_CFG_OUTPUT,
-		 GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-	gpio_tlmm_config(GPIO_CFG(GPIO_FUELGAUGE_I2C_SDA,  0, GPIO_CFG_OUTPUT,
-		 GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-	gpio_set_value(GPIO_FUELGAUGE_I2C_SCL, 1);
-	gpio_set_value(GPIO_FUELGAUGE_I2C_SDA, 1);
-
-	gpio_tlmm_config(GPIO_CFG(GPIO_FUEL_INT,  0, GPIO_CFG_INPUT,
-	 GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-}
-
-static int max17040_low_batt_cb(void)
-{
-	pr_err("%s: Low battery alert\n", __func__);
-
-#ifdef CONFIG_BATTERY_SEC
-	struct power_supply *psy = power_supply_get_by_name("battery");
-	union power_supply_propval value;
-
-	if (!psy) {
-		pr_err("%s: fail to get battery ps\n", __func__);
-		return -ENODEV;
-	}
-
-	value.intval = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
-	return psy->set_property(psy, POWER_SUPPLY_PROP_CAPACITY_LEVEL, &value);
-#else
-	return 0;
-#endif
-}
-
-static struct max17040_platform_data max17043_pdata = {
-	.hw_init = max17040_hw_init,
-	.low_batt_cb = max17040_low_batt_cb,
-	.rcomp_value = 0xe71f,
-};
-
-static struct i2c_gpio_platform_data fuelgauge_i2c_gpio_data = {
-	.sda_pin		= GPIO_FUELGAUGE_I2C_SDA,
-	.scl_pin		= GPIO_FUELGAUGE_I2C_SCL,
-	.udelay			= 2,
-	.sda_is_open_drain	= 0,
-	.scl_is_open_drain	= 0,
-	.scl_is_output_only	= 0,
-};
-
-static struct platform_device fuelgauge_i2c_gpio_device = {
-	.name			= "i2c-gpio",
-	.id			= MSM_FUELGAUGE_I2C_BUS_ID,
-	.dev.platform_data	= &fuelgauge_i2c_gpio_data,
-};
-
-static struct i2c_board_info fuelgauge_i2c_board_info[] = {
-	{
-		I2C_BOARD_INFO("max17040", (0x6D >> 1)),
-		.platform_data = &max17043_pdata,
-		.irq		= MSM_GPIO_TO_INT(GPIO_FUEL_INT),
-	}
-};
-#endif
-
 #ifdef CONFIG_LEDS_MSM_TKEY
 static int tkey_led_gpio;
 static void tkeyled_device_init(void)
@@ -3070,9 +2999,6 @@ static struct msm_spi_platform_data msm8960_qup_spi_gsbi1_pdata = {
 };
 #endif
 
-#ifdef CONFIG_USB_MSM_OTG_72K
-static struct msm_otg_platform_data msm_otg_pdata;
-#else
 static int msm_hsusb_vbus_power(bool on)
 {
 	int rc;
@@ -3089,14 +3015,14 @@ static int msm_hsusb_vbus_power(bool on)
 	};
 
 	if (vbus_is_on == on)
-		return 0;
+		return -EBUSY;
 
 	if (on) {
 		mvs_otg_switch = regulator_get(&msm8960_device_otg.dev,
 					       "vbus_otg");
 		if (IS_ERR(mvs_otg_switch)) {
 			pr_err("Unable to get mvs_otg_switch\n");
-			return -1;
+			return -EBUSY;
 		}
 
 		rc = gpio_request(PM8921_GPIO_PM_TO_SYS(PMIC_GPIO_OTG_EN),
@@ -3133,7 +3059,7 @@ free_usb_5v_en:
 put_mvs_otg:
 		regulator_put(mvs_otg_switch);
 		vbus_is_on = false;
-                return 0;
+		return -EBUSY;
 }
 
 static int phy_settings[] = {
@@ -3207,21 +3133,11 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 	.vbus_power		= msm_hsusb_vbus_power,
 	.power_budget		= 750,
 	.phy_init_seq = phy_settings,
-	.smb347s		= false,
+	.smb347s		= true,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.bus_scale_table	= &usb_bus_scale_pdata,
 #endif
 };
-
-#ifdef CONFIG_USB_HOST_NOTIFY
-static void __init msm_otg_power_init(void)
-{
-	if (system_rev >= BOARD_REV01)
-		msm_otg_pdata.smb347s = true;
-	else
-		msm_otg_pdata.smb347s = false;
-}
-#endif
 
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 #define HSIC_HUB_RESET_GPIO	91
@@ -3405,7 +3321,7 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 	[1] = {
 		.reg_base_addr = MSM_SAW1_BASE,
 		.reg_init_values[MSM_SPM_REG_SAW2_CFG] = 0x1F,
-#if defined(CONFIG_MSM_AVS_HW)
+#if 0//defined(CONFIG_MSM_AVS_HW)
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_CTL] = 0x58589464,
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_HYSTERESIS] = 0x00020000,
 #endif
@@ -4525,8 +4441,8 @@ static struct platform_device *common_devices[] __initdata = {
 
 static struct platform_device *apexq_devices[] __initdata = {
 	&msm_8960_q6_lpass,
-	&msm_8960_q6_mss_sw,
 	&msm_8960_q6_mss_fw,
+	&msm_8960_q6_mss_sw,
 	&msm_8960_riva,
 	&msm_pil_tzapps,
 	&msm_pil_vidc,
@@ -4578,9 +4494,6 @@ static struct platform_device *apexq_devices[] __initdata = {
 #ifdef CONFIG_KEYBOARD_CYPRESS_TOUCH_236
 	&touchkey_i2c_gpio_device,
 #endif
-#ifdef CONFIG_BATTERY_MAX17040
-	&fuelgauge_i2c_gpio_device,
-#endif
 #ifdef CONFIG_SAMSUNG_JACK
 	&sec_device_jack,
 #endif
@@ -4588,6 +4501,7 @@ static struct platform_device *apexq_devices[] __initdata = {
 	&msm_cpudai_incall_record_rx,
 	&msm_cpudai_incall_record_tx,
 	&msm_pcm_hostless,
+	&msm_lowlatency_pcm,
 	&msm_bus_apps_fabric,
 	&msm_bus_sys_fabric,
 	&msm_bus_mm_fabric,
@@ -4885,22 +4799,6 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 	ARRAY_SIZE(touchkey_i2c_devices_info),
 },
 #endif
-#ifdef CONFIG_BATTERY_MAX17040
-	{
-		I2C_SURF | I2C_FFA | I2C_FLUID,
-		MSM_FUELGAUGE_I2C_BUS_ID,
-		fuelgauge_i2c_board_info,
-		ARRAY_SIZE(fuelgauge_i2c_board_info),
-	},
-#endif
-#ifdef CONFIG_VP_A2220
-	{
-		I2C_SURF | I2C_FFA | I2C_FLUID,
-		MSM_A2220_I2C_BUS_ID,
-		a2220_device,
-		ARRAY_SIZE(a2220_device),
-	},
-#endif
 #ifdef CONFIG_NFC_PN544
 	{
 		I2C_SURF | I2C_FFA | I2C_FLUID,
@@ -4909,7 +4807,6 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 		ARRAY_SIZE(pn544_info),
 	},
 #endif /* CONFIG_NFC_PN544	*/
-
 	{
 		I2C_LIQUID,
 		MSM_8960_GSBI3_QUP_I2C_BUS_ID,
@@ -4962,7 +4859,6 @@ static struct i2c_registry msm8960_i2c_devices[] __initdata = {
 		ARRAY_SIZE(tabla_device_info),
 	},
 #endif
-
 #if defined(CONFIG_KEYBOARD_ADP5588) || defined(CONFIG_KEYBOARD_ADP5588_MODULE)
 	{
 	I2C_SURF | I2C_FFA | I2C_FLUID,
@@ -5217,10 +5113,6 @@ static void __init samsung_apexq_init(void)
 	android_usb_pdata.swfi_latency =
 		msm_rpmrs_levels[0].latency_us;
 
-#ifdef CONFIG_USB_HOST_NOTIFY
-	msm_otg_power_init();
-#endif
-
 #ifdef CONFIG_USB_EHCI_MSM_HSIC
 	if (machine_is_msm8960_liquid()) {
 		if (SOCINFO_VERSION_MAJOR(socinfo_get_version()) >= 2)
@@ -5373,4 +5265,3 @@ MACHINE_START(APEXQ, "SAMSUNG APEXQ")
 	.init_very_early = msm8960_early_memory,
 	.restart = msm_restart,
 MACHINE_END
-#endif

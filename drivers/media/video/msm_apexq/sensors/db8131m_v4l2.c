@@ -1417,17 +1417,23 @@ int db8131m_sensor_config(void __user *argp)
 
 	CAM_DEBUG(" cfgtype = %d, mode = %d\n",
 			cfg_data.cfgtype, cfg_data.mode);
-		switch (cfg_data.cfgtype) {
-		case CFG_SET_MODE:
-			rc = db8131m_set_sensor_mode(cfg_data.mode);
-			break;
 
-		case CFG_GET_AF_MAX_STEPS:
-		default:
-			rc = 0;
-			cam_err(" Invalid cfgtype = %d", cfg_data.cfgtype);
-			break;
-		}
+	switch (cfg_data.cfgtype) {
+	case CFG_SENSOR_INIT:
+		if (config_csi2 == 0)
+			rc = db8131m_sensor_setting(UPDATE_PERIODIC,
+					RES_PREVIEW);
+		break;
+	case CFG_SET_MODE:
+		rc = db8131m_set_sensor_mode(cfg_data.mode);
+		break;
+
+	case CFG_GET_AF_MAX_STEPS:
+	default:
+		rc = 0;
+		cam_err(" Invalid cfgtype = %d", cfg_data.cfgtype);
+		break;
+	}
 	return rc;
 }
 

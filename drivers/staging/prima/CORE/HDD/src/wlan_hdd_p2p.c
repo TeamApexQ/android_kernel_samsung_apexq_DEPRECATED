@@ -57,6 +57,7 @@
 #include "sme_Api.h"
 #include "wlan_hdd_p2p.h"
 #include "sapApi.h"
+#include "wlan_hdd_main.h"
 
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
@@ -339,7 +340,8 @@ static int wlan_hdd_request_remain_on_channel( struct wiphy *wiphy,
         sme_RemainOnChannel(
                        WLAN_HDD_GET_HAL_CTX(pAdapter), sessionId,
                        chan->hw_value, duration,
-                       wlan_hdd_remain_on_channel_callback, pAdapter );
+                       wlan_hdd_remain_on_channel_callback, pAdapter,
+                       (tANI_U8)(request_type == REMAIN_ON_CHANNEL_REQUEST)? TRUE:FALSE);
 
         if( REMAIN_ON_CHANNEL_REQUEST == request_type)
         {
@@ -452,15 +454,18 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
 #endif
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
     hdd_cfg80211_state_t *cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
-    int status = 0;
+    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX( pAdapter );
+    int status;
 
     hddLog( LOG1, "Cancel remain on channel req");
 
-    if (((hdd_context_t*)pAdapter->pHddCtx)->isLogpInProgress)
+    status = wlan_hdd_validate_context(pHddCtx);
+
+    if (0 != status)
     {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                "%s:LOGP in Progress. Ignore!!!", __func__);
-        return -EAGAIN;
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                   "%s: HDD context is not valid", __func__);
+        return status;
     }
     /* FIXME cancel currently running remain on chan.
      * Need to check cookie and cancel accordingly
@@ -473,8 +478,8 @@ int wlan_hdd_cfg80211_cancel_remain_on_channel( struct wiphy *wiphy,
              __func__);
         return -EINVAL;
     }
-    
-    /* wait until remain on channel ready event received 
+
+    /* wait until remain on channel ready event received
      * for already issued remain on channel request */
     status = wait_for_completion_interruptible_timeout(&pAdapter->rem_on_chan_ready_event,
             msecs_to_jiffies(WAIT_REM_CHAN_READY));
@@ -523,24 +528,20 @@ int wlan_hdd_action( struct wiphy *wiphy, struct wireless_dev *wdev,
                      bool channel_type_valid, unsigned int wait,
                      const u8 *buf, size_t len,  bool no_cck,
                      bool dont_wait_for_ack, u64 *cookie )
-//#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
-#else
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
 int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan, bool offchan,
                      enum nl80211_channel_type channel_type,
                      bool channel_type_valid, unsigned int wait,
                      const u8 *buf, size_t len,  bool no_cck,
                      bool dont_wait_for_ack, u64 *cookie )
-//#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
-#endif
-#if 0
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
 int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan, bool offchan,
                      enum nl80211_channel_type channel_type,
                      bool channel_type_valid, unsigned int wait,
                      const u8 *buf, size_t len, u64 *cookie )
-//#else
-#elif 0
+#else
 int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
                      struct ieee80211_channel *chan,
                      enum nl80211_channel_type channel_type,
@@ -553,11 +554,13 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
 #endif
     hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR( dev );
     hdd_cfg80211_state_t *cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
+    hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX( pAdapter );
     tANI_U16 extendedWait = 0;
     tANI_U8 type = WLAN_HDD_GET_TYPE_FRM_FC(buf[0]);
     tANI_U8 subType = WLAN_HDD_GET_SUBTYPE_FRM_FC(buf[0]);
     tActionFrmType actionFrmType;
     bool noack = 0;
+    int status;
 #ifdef WLAN_FEATURE_11W
     tANI_U8 *pTxFrmBuf = (tANI_U8 *) buf; // For SA Query, we have to set protect bit
 #endif
@@ -566,12 +569,15 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
     hdd_adapter_t *goAdapter;
 #endif
 
-    if (((hdd_context_t*)pAdapter->pHddCtx)->isLogpInProgress)
+    status = wlan_hdd_validate_context(pHddCtx);
+
+    if (0 != status)
     {
-        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                "%s:LOGP in Progress. Ignore!!!", __func__);
-        return -EBUSY;
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                   "%s: HDD context is not valid", __func__);
+        return status;
     }
+
 #ifdef WLAN_FEATURE_P2P_DEBUG
     if ((type == SIR_MAC_MGMT_FRAME) &&
             (subType == SIR_MAC_MGMT_ACTION) &&
@@ -605,8 +611,7 @@ int wlan_hdd_action( struct wiphy *wiphy, struct net_device *dev,
     }
 #endif
 
-//#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
-#if 1
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0))
     noack = dont_wait_for_ack;
 #endif
 
@@ -1251,26 +1256,30 @@ int wlan_hdd_del_virtual_intf( struct wiphy *wiphy, struct net_device *dev )
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
     struct net_device *dev = wdev->netdev;
 #endif
-     hdd_context_t *pHddCtx = (hdd_context_t*) wiphy_priv(wiphy);
-     hdd_adapter_t *pVirtAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-     ENTER();
+    hdd_context_t *pHddCtx = (hdd_context_t*) wiphy_priv(wiphy);
+    hdd_adapter_t *pVirtAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
+    int status;
+    ENTER();
 
-     hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d",
-            __func__,pVirtAdapter->device_mode);
-     if (pHddCtx->isLogpInProgress)
-     {
-         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                "%s:LOGP in Progress. Ignore!!!", __func__);
-         return -EAGAIN;
-     }
+    hddLog(VOS_TRACE_LEVEL_INFO, "%s: device_mode = %d",
+           __func__,pVirtAdapter->device_mode);
 
-     wlan_hdd_release_intf_addr( pHddCtx,
+    status = wlan_hdd_validate_context(pHddCtx);
+
+    if (0 != status)
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                   "%s: HDD context is not valid", __func__);
+        return status;
+    }
+
+    wlan_hdd_release_intf_addr( pHddCtx,
                                  pVirtAdapter->macAddressCurrent.bytes );
 
-     hdd_stop_adapter( pHddCtx, pVirtAdapter );
-     hdd_close_adapter( pHddCtx, pVirtAdapter, TRUE );
-     EXIT();
-     return 0;
+    hdd_stop_adapter( pHddCtx, pVirtAdapter );
+    hdd_close_adapter( pHddCtx, pVirtAdapter, TRUE );
+    EXIT();
+    return 0;
 }
 
 void hdd_sendMgmtFrameOverMonitorIface( hdd_adapter_t *pMonAdapter,
@@ -1545,14 +1554,11 @@ void hdd_indicateMgmtFrame( hdd_adapter_t *pAdapter,
     cfg80211_rx_mgmt( pAdapter->dev->ieee80211_ptr, freq, 0,
                       pbFrames, nFrameLength,
                       GFP_ATOMIC );
-//#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
-#else
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
     cfg80211_rx_mgmt( pAdapter->dev, freq, 0,
                       pbFrames, nFrameLength,
                       GFP_ATOMIC );
-//#else
-#endif
-#if 0
+#else
     cfg80211_rx_mgmt( pAdapter->dev, freq,
                       pbFrames, nFrameLength,
                       GFP_ATOMIC );
@@ -1680,6 +1686,33 @@ static void hdd_wlan_tx_complete( hdd_adapter_t* pAdapter,
         netif_rx_ni( skb );
 
     /* Enable Queues which we have disabled earlier */
-    netif_tx_start_all_queues( pAdapter->dev ); 
+    netif_tx_start_all_queues( pAdapter->dev );
 
 }
+
+void hdd_start_p2p_go_connection_in_progress_timer( hdd_adapter_t *pAdapter )
+{
+
+    hdd_context_t *pHddCtx;
+    VOS_STATUS vos_status;
+
+    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+
+    if (WLAN_HDD_P2P_GO == pAdapter->device_mode)
+    {
+        vos_status = vos_timer_start(&pHddCtx->hdd_p2p_go_conn_is_in_progress,
+                        WAIT_TIME_FOR_P2PGO_CONNECTION);
+        if ( !VOS_IS_STATUS_SUCCESS(vos_status))
+        {
+             VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                  FL("Starting hdd_p2p_go_conn_is_in_progress timer failed %s"), __func__);
+        }
+    }
+}
+
+v_VOID_t wlan_hdd_p2p_go_connection_in_progresscb (v_PVOID_t userData )
+{
+     VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+              "%s: Connection is in progress", __func__);
+}
+

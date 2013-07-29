@@ -276,6 +276,8 @@ when        who    what, where, why
 
 #define WDI_RX_BD_GET_TID( _pvBDHeader )        (((WDI_RxBdType*)_pvBDHeader)->tid)
 
+#define WDI_RX_BD_GET_RFBAND( _pvBDHeader )        (((WDI_RxBdType*)_pvBDHeader)->rfBand)
+
 #define WDI_RX_BD_GET_ASF( _pvBDHeader )        (((WDI_RxBdType*)_pvBDHeader)->asf)
 
 #define WDI_RX_BD_GET_AEF( _pvBDHeader )        (((WDI_RxBdType*)_pvBDHeader)->aef)
@@ -403,6 +405,8 @@ WDI_RxBD_GetFrameTypeSubType
      ucDisableFrmXtl: set to 1 if this frame is not to be translated by HW
      pTxBd:          pointer to the TX BD
      ucTxFlag:       can have appropriate bit setting as required
+     ucProtMgmtFrame: for management frames, whether the frame is
+                      protected (protect bit is set in FC)
      uTimestamp:     pkt timestamp
   
   
@@ -420,6 +424,7 @@ WDI_FillTxBd
     wpt_uint8              ucDisableFrmXtl, 
     void*                  pTxBd, 
     wpt_uint8              ucTxFlag, 
+    wpt_uint8              ucProtMgmtFrame,
     wpt_uint32             uTimeStamp,
     wpt_uint8*             staIndex
 );

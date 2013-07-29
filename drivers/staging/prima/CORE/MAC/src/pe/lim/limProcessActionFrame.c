@@ -1198,6 +1198,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     pHdr = WDA_GET_RX_MAC_HEADER( pRxPacketInfo );
     pBody = WDA_GET_RX_MPDU_DATA( pRxPacketInfo );
     frameLen = WDA_GET_RX_PAYLOAD_LEN( pRxPacketInfo );
+    val = 0;
 
     // Unpack the received frame
     nStatus = dot11fUnpackAddBAReq( pMac, pBody, frameLen, &frmAddBAReq );
@@ -1223,12 +1224,14 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
         PELOG2(sirDumpBuf( pMac, SIR_DBG_MODULE_ID, LOG2, pBody, frameLen );)
     }
 
+    psessionEntry->amsduSupportedInBA = frmAddBAReq.AddBAParameterSet.amsduSupported;
+
     pSta = dphLookupHashEntry( pMac, pHdr->sa, &aid, &psessionEntry->dph.dphHashTable );
     if( pSta == NULL )
     {
         limLog( pMac, LOGE,
             FL( "STA context not found - ignoring ADDBA from " ));
-        limPrintMacAddr( pMac, pHdr->sa, LOGW );
+        limPrintMacAddr( pMac, pHdr->sa, LOGE );
 
         // FIXME - Should we do this?
         status = eSIR_MAC_INABLITY_TO_CONFIRM_ASSOC_STATUS;
@@ -1248,6 +1251,23 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
     }
 #endif //WLAN_SOFTAP_VSTA_FEATURE
 
+    if (wlan_cfgGetInt(pMac, WNI_CFG_DEL_ALL_RX_BA_SESSIONS_2_4_G_BTC, &val) !=
+                    eSIR_SUCCESS)
+    {
+        limLog(pMac, LOGE,
+               FL("Unable to get WNI_CFG_DEL_ALL_RX_BA_SESSIONS_2_4_G_BTC"));
+        val = 0;
+    }
+    if ((SIR_BAND_2_4_GHZ == limGetRFBand(psessionEntry->currentOperChannel)) &&
+                    val)
+    {
+        limLog( pMac, LOGW,
+            FL( "BTC disabled aggregation - ignoring ADDBA from " ));
+        limPrintMacAddr( pMac, pHdr->sa, LOGW );
+
+        status = eSIR_MAC_REQ_DECLINED_STATUS;
+        goto returnAfterError;
+    }
 
     // Now, validate the ADDBA Req
     if( eSIR_MAC_SUCCESS_STATUS !=
@@ -1304,7 +1324,7 @@ __limProcessAddBAReq( tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
   {
       frmAddBAReq.AddBAParameterSet.bufferSize = val;
   }
-  limLog( pMac, LOGE, FL( "ADDBAREQ NUMBUFF %d" ),
+  limLog( pMac, LOG1, FL( "ADDBAREQ NUMBUFF %d" ),
                         frmAddBAReq.AddBAParameterSet.bufferSize);
 
   if( eSIR_SUCCESS != limPostMsgAddBAReq( pMac,
@@ -2086,7 +2106,7 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
               if ((eLIM_STA_ROLE == psessionEntry->limSystemRole) &&
                   (VOS_TRUE == palEqualMemory(pMac->hHdd, psessionEntry->selfMacAddr,
                     &pHdr->da[0], sizeof(tSirMacAddr))) &&
-                  IS_WES_MODE_ENABLED(pMac) && palEqualMemory( pMac->hHdd, pVendorSpecific->Oui, Oui, 3))
+                   palEqualMemory( pMac->hHdd, pVendorSpecific->Oui, Oui, 3))
               {
                   PELOGE( limLog( pMac, LOGW, FL("Received Vendor specific action frame, OUI %x %x %x"),
                          pVendorSpecific->Oui[0], pVendorSpecific->Oui[1], pVendorSpecific->Oui[2]);)
@@ -2099,9 +2119,8 @@ limProcessActionFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession ps
               else
               {
                  limLog( pMac, LOGE, FL("Dropping the vendor specific action frame because of( "
-                                        "WES Mode not enabled (WESMODE = %d) or OUI mismatch (%02x %02x %02x) or "
+                                        "OUI mismatch (%02x %02x %02x) or "
                                         "not received with SelfSta Mac address) system role = %d"),
-                                        IS_WES_MODE_ENABLED(pMac),
                                         pVendorSpecific->Oui[0], pVendorSpecific->Oui[1],
                                         pVendorSpecific->Oui[2],
                                         psessionEntry->limSystemRole );

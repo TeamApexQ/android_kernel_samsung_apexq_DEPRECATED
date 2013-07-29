@@ -140,6 +140,7 @@ static void __limInitScanVars(tpAniSirGlobal pMac)
     // abort scan is used to abort an on-going scan
     pMac->lim.abortScan = 0;
     palZeroMemory(pMac->hHdd, &pMac->lim.scanChnInfo, sizeof(tLimScanChnInfo));
+    palZeroMemory(pMac->hHdd, &pMac->lim.dfschannelList, sizeof(tSirDFSChannelList));
 
 //WLAN_SUSPEND_LINK Related
     pMac->lim.gpLimSuspendCallback = NULL;
@@ -620,7 +621,18 @@ static tSirRetStatus __limInitConfig( tpAniSirGlobal pMac )
       limLog(pMac, LOGP, FL("cfg get disableLDPCWithTxbfAP failed"));
       return eSIR_FAILURE;
    }
-
+#ifdef FEATURE_WLAN_TDLS
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_BUF_STA_ENABLED,(tANI_U32 *) &pMac->lim.gLimTDLSBufStaEnabled) != eSIR_SUCCESS)
+   {
+       limLog(pMac, LOGP, FL("cfg get LimTDLSBufStaEnabled failed"));
+       return eSIR_FAILURE;
+   }
+   if(wlan_cfgGetInt(pMac, WNI_CFG_TDLS_QOS_WMM_UAPSD_MASK,(tANI_U32 *) &pMac->lim.gLimTDLSUapsdMask) != eSIR_SUCCESS)
+   {
+       limLog(pMac, LOGP, FL("cfg get LimTDLSUapsdMask failed"));
+       return eSIR_FAILURE;
+   }
+#endif
    return eSIR_SUCCESS;
 }
 
@@ -1719,9 +1731,11 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
 
     /* Some APs are not setting privacy bit when hidden ssid enabled.
      * So LIM was keep on sending eSIR_SME_AP_CAPS_CHANGED event to SME */
-    if (limIsNullSsid(&pBeacon->ssId) &&
+    if ((limIsNullSsid(&pBeacon->ssId) &&
             (SIR_MAC_GET_PRIVACY(apNewCaps.capabilityInfo) !=
-             SIR_MAC_GET_PRIVACY(psessionEntry->limCurrentBssCaps))
+             SIR_MAC_GET_PRIVACY(psessionEntry->limCurrentBssCaps))) ||
+            (SIR_MAC_GET_SHORT_PREAMBLE(apNewCaps.capabilityInfo) !=
+             SIR_MAC_GET_SHORT_PREAMBLE(psessionEntry->limCurrentBssCaps))
        )
     {
         /* If Hidden SSID and privacy bit is not matching with the current capability,
@@ -1734,6 +1748,7 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
         }
         psessionEntry->fWaitForProbeRsp = true;
         limLog(pMac, LOGW, FL("Hidden SSID and privacy bit is not matching,"
+                    " Or Short preamble bit is not matching ,"
                     "sending directed probe request.. "));
         status = limSendProbeReqMgmtFrame(pMac, &psessionEntry->ssId, psessionEntry->bssId,
                 psessionEntry->currentOperChannel,psessionEntry->selfMacAddr,
@@ -1752,10 +1767,13 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
          * or probe response frame */
         if (psessionEntry->fWaitForProbeRsp == true)
         {
-            if (((!limIsNullSsid(&pBeacon->ssId)) &&
+            if ((((!limIsNullSsid(&pBeacon->ssId)) &&
                         (limCmpSSid(pMac, &pBeacon->ssId, psessionEntry) == true)) &&
                     (SIR_MAC_GET_PRIVACY(apNewCaps.capabilityInfo) ==
-                     SIR_MAC_GET_PRIVACY(psessionEntry->limCurrentBssCaps)))
+                     SIR_MAC_GET_PRIVACY(psessionEntry->limCurrentBssCaps))) &&
+                    (SIR_MAC_GET_SHORT_PREAMBLE(apNewCaps.capabilityInfo) ==
+                     SIR_MAC_GET_SHORT_PREAMBLE(psessionEntry->limCurrentBssCaps))
+               )
             {
                 /* Only for probe response frames the control will come here */
                 /* If beacon with broadcast ssid then fWaitForProbeRsp will be false,

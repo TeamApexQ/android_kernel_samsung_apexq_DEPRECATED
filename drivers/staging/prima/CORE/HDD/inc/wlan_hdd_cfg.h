@@ -364,6 +364,10 @@ typedef enum
 #define CFG_ROAM_PREFER_5GHZ_MAX              ( 1 )  
 #define CFG_ROAM_PREFER_5GHZ_DEFAULT          ( 1 )
 
+/*
+    To enable, set gRoamIntraBand=1 (Roaming within band)
+    To disable, set gRoamIntraBand=0 (Roaming across band)
+*/
 #define CFG_ROAM_INTRA_BAND                   "gRoamIntraBand"
 #define CFG_ROAM_INTRA_BAND_MIN               ( 0 )
 #define CFG_ROAM_INTRA_BAND_MAX               ( 1 )
@@ -518,13 +522,6 @@ typedef enum
 #define CFG_BEACON_INTERVAL_MAX                WNI_CFG_BEACON_INTERVAL_STAMAX
 #define CFG_BEACON_INTERVAL_DEFAULT            WNI_CFG_BEACON_INTERVAL_STADEF
 
-//Handoff Configuration Parameters
-#define CFG_ENABLE_HANDOFF_NAME                "gEnableHandoff"
-#define CFG_ENABLE_HANDOFF_MIN                 ( 0 )
-#define CFG_ENABLE_HANDOFF_MAX                 ( 1 )
-#define CFG_ENABLE_HANDOFF_DEFAULT             ( 1 )
-
-
 //Additional Handoff related Parameters  
 #define CFG_ENABLE_IDLE_SCAN_NAME             "gEnableIdleScan"      
 #define CFG_ENABLE_IDLE_SCAN_MIN              ( 0 )
@@ -591,6 +588,11 @@ typedef enum
 #define CFG_RETRY_LIMIT_TWO_MAX        ( 15 )
 #define CFG_RETRY_LIMIT_TWO_DEFAULT    ( 15 )
 
+#define CFG_DISABLE_AGG_WITH_BTC_NAME       "gDisableAggWithBTC"
+#define CFG_DISABLE_AGG_WITH_BTC_MIN        ( 0 )
+#define CFG_DISABLE_AGG_WITH_BTC_MAX        ( 1 )
+#define CFG_DISABLE_AGG_WITH_BTC_DEFAULT    ( 1 )
+
 #ifdef WLAN_AP_STA_CONCURRENCY
 
 #define CFG_PASSIVE_MAX_CHANNEL_TIME_CONC_NAME      "gPassiveMaxChannelTimeConc"
@@ -618,10 +620,15 @@ typedef enum
 #define CFG_REST_TIME_CONC_MAX                      ( 10000 )
 #define CFG_REST_TIME_CONC_DEFAULT                  ( 100 )
 
-#define CFG_NUM_CHAN_COMBINED_CONC_NAME             "gNumChanCombinedConc"
-#define CFG_NUM_CHAN_COMBINED_CONC_MIN              ( 1 )
-#define CFG_NUM_CHAN_COMBINED_CONC_MAX              ( 255 )
-#define CFG_NUM_CHAN_COMBINED_CONC_DEFAULT          ( 1 )
+#define CFG_NUM_STA_CHAN_COMBINED_CONC_NAME             "gNumStaChanCombinedConc"
+#define CFG_NUM_STA_CHAN_COMBINED_CONC_MIN              ( 1 )
+#define CFG_NUM_STA_CHAN_COMBINED_CONC_MAX              ( 255 )
+#define CFG_NUM_STA_CHAN_COMBINED_CONC_DEFAULT          ( 3 )
+
+#define CFG_NUM_P2P_CHAN_COMBINED_CONC_NAME             "gNumP2PChanCombinedConc"
+#define CFG_NUM_P2P_CHAN_COMBINED_CONC_MIN              ( 1 )
+#define CFG_NUM_P2P_CHAN_COMBINED_CONC_MAX              ( 255 )
+#define CFG_NUM_P2P_CHAN_COMBINED_CONC_DEFAULT          ( 1 )
 
 #endif
 
@@ -654,6 +661,11 @@ typedef enum
 #define CFG_IGNORE_DTIM_MIN                    WNI_CFG_IGNORE_DTIM_STAMIN
 #define CFG_IGNORE_DTIM_MAX                    WNI_CFG_IGNORE_DTIM_STAMAX
 #define CFG_IGNORE_DTIM_DEFAULT                WNI_CFG_IGNORE_DTIM_STADEF
+
+#define CFG_MAX_LI_MODULATED_DTIM_NAME         "gMaxLIModulatedDTIM"
+#define CFG_MAX_LI_MODULATED_DTIM_MIN          ( 1 )
+#define CFG_MAX_LI_MODULATED_DTIM_MAX          ( 10 )
+#define CFG_MAX_LI_MODULATED_DTIM_DEFAULT      ( 10 )
 
 #define CFG_RX_ANT_CONFIGURATION_NAME          "gNumRxAnt"
 #define CFG_RX_ANT_CONFIGURATION_NAME_MIN      ( 1 )
@@ -796,7 +808,7 @@ typedef enum
 #define CFG_ROAM_RSSI_DIFF_NAME                             "RoamRssiDiff"
 #define CFG_ROAM_RSSI_DIFF_MIN                              (0)
 #define CFG_ROAM_RSSI_DIFF_MAX                              (30)
-#define CFG_ROAM_RSSI_DIFF_DEFAULT                          (0)
+#define CFG_ROAM_RSSI_DIFF_DEFAULT                          (5)
 
 /*
  * Following a scan and if potential roam candidate(s) are found,
@@ -805,17 +817,22 @@ typedef enum
  * of any available candidate is better than the currently associated 
  * AP by at least gImmediateRoamRssiDiff, then being to roam 
  * immediately. 
+ * NOTE: Value of 0 means that immediate roaming is enabled by default
  */
 #define CFG_IMMEDIATE_ROAM_RSSI_DIFF_NAME                   "gImmediateRoamRssiDiff"
 #define CFG_IMMEDIATE_ROAM_RSSI_DIFF_MIN                    (0)
 #define CFG_IMMEDIATE_ROAM_RSSI_DIFF_MAX                    (125)
-#define CFG_IMMEDIATE_ROAM_RSSI_DIFF_DEFAULT                (3)
+#define CFG_IMMEDIATE_ROAM_RSSI_DIFF_DEFAULT                (0)
 
-/*This parameter is used to set Wireless Extended Security Mode.*/
-#define CFG_ENABLE_WES_MODE_NAME                            "gWESModeEnabled"
-#define CFG_ENABLE_WES_MODE_NAME_MIN                        (0)
-#define CFG_ENABLE_WES_MODE_NAME_MAX                        (1)
-#define CFG_ENABLE_WES_MODE_NAME_DEFAULT                    (0)
+#define CFG_ROAM_SCAN_N_PROBES                             "gRoamScanNProbes"
+#define CFG_ROAM_SCAN_N_PROBES_MIN                          (1)
+#define CFG_ROAM_SCAN_N_PROBES_MAX                          (10)
+#define CFG_ROAM_SCAN_N_PROBES_DEFAULT                      (2)
+
+#define CFG_ROAM_SCAN_HOME_AWAY_TIME                        "gRoamScanHomeAwayTime"
+#define CFG_ROAM_SCAN_HOME_AWAY_TIME_MIN                    (3)
+#define CFG_ROAM_SCAN_HOME_AWAY_TIME_MAX                    (300)
+#define CFG_ROAM_SCAN_HOME_AWAY_TIME_DEFAULT                (CFG_ROAM_SCAN_HOME_AWAY_TIME_MIN)
 #endif /* (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR) */
 
 #ifdef FEATURE_WLAN_OKC
@@ -1027,17 +1044,17 @@ typedef enum
 #define CFG_BTC_STATIC_LEN_PAGE_BT_NAME      "btcStaticLenPageBt"
 #define CFG_BTC_STATIC_LEN_PAGE_BT_MIN       ( 5000 )
 #define CFG_BTC_STATIC_LEN_PAGE_BT_MAX       ( 500000 )
-#define CFG_BTC_STATIC_LEN_PAGE_BT_DEFAULT   ( 10000 )
+#define CFG_BTC_STATIC_LEN_PAGE_BT_DEFAULT   ( 120000 )
 
 #define CFG_BTC_STATIC_LEN_CONN_BT_NAME      "btcStaticLenConnBt"
 #define CFG_BTC_STATIC_LEN_CONN_BT_MIN       ( 5000 )
 #define CFG_BTC_STATIC_LEN_CONN_BT_MAX       ( 500000 )
-#define CFG_BTC_STATIC_LEN_CONN_BT_DEFAULT   ( 10000 )
+#define CFG_BTC_STATIC_LEN_CONN_BT_DEFAULT   ( 120000 )
 
 #define CFG_BTC_STATIC_LEN_LE_BT_NAME        "btcStaticLenLeBt"
 #define CFG_BTC_STATIC_LEN_LE_BT_MIN         ( 5000 )
 #define CFG_BTC_STATIC_LEN_LE_BT_MAX         ( 500000 )
-#define CFG_BTC_STATIC_LEN_LE_BT_DEFAULT     ( 10000 )
+#define CFG_BTC_STATIC_LEN_LE_BT_DEFAULT     ( 120000 )
   
 #define CFG_BTC_STATIC_LEN_INQ_WLAN_NAME     "btcStaticLenInqWlan"
 #define CFG_BTC_STATIC_LEN_INQ_WLAN_MIN      ( 0 )
@@ -1047,17 +1064,17 @@ typedef enum
 #define CFG_BTC_STATIC_LEN_PAGE_WLAN_NAME    "btcStaticLenPageWlan"
 #define CFG_BTC_STATIC_LEN_PAGE_WLAN_MIN     ( 0 )
 #define CFG_BTC_STATIC_LEN_PAGE_WLAN_MAX     ( 500000 )
-#define CFG_BTC_STATIC_LEN_PAGE_WLAN_DEFAULT ( 0 )
+#define CFG_BTC_STATIC_LEN_PAGE_WLAN_DEFAULT ( 30000 )
 
 #define CFG_BTC_STATIC_LEN_CONN_WLAN_NAME    "btcStaticLenConnWlan"
 #define CFG_BTC_STATIC_LEN_CONN_WLAN_MIN     ( 0 )
 #define CFG_BTC_STATIC_LEN_CONN_WLAN_MAX     ( 500000 )
-#define CFG_BTC_STATIC_LEN_CONN_WLAN_DEFAULT ( 0 )
+#define CFG_BTC_STATIC_LEN_CONN_WLAN_DEFAULT ( 30000 )
 
 #define CFG_BTC_STATIC_LEN_LE_WLAN_NAME      "btcStaticLenLeWlan"
 #define CFG_BTC_STATIC_LEN_LE_WLAN_MIN       ( 0 )
 #define CFG_BTC_STATIC_LEN_LE_WLAN_MAX       ( 500000 )
-#define CFG_BTC_STATIC_LEN_LE_WLAN_DEFAULT   ( 0 )
+#define CFG_BTC_STATIC_LEN_LE_WLAN_DEFAULT   ( 30000 )
 
 #define CFG_BTC_DYN_MAX_LEN_BT_NAME          "btcDynMaxLenBt"
 #define CFG_BTC_DYN_MAX_LEN_BT_MIN           ( 25000 )
@@ -1123,19 +1140,19 @@ typedef enum
 
 #ifdef WLAN_FEATURE_NEIGHBOR_ROAMING
 #define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_NAME             "gNeighborScanTimerPeriod"
-#define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_MIN              (0)
-#define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_MAX              (1000)
+#define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_MIN              (3)
+#define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_MAX              (300)
 #define CFG_NEIGHBOR_SCAN_TIMER_PERIOD_DEFAULT          (200)
 
 #define CFG_NEIGHBOR_REASSOC_RSSI_THRESHOLD_NAME              "gNeighborReassocThreshold"
 #define CFG_NEIGHBOR_REASSOC_RSSI_THRESHOLD_MIN               (10)
 #define CFG_NEIGHBOR_REASSOC_RSSI_THRESHOLD_MAX               (125)
-#define CFG_NEIGHBOR_REASSOC_RSSI_THRESHOLD_DEFAULT           (125)
+#define CFG_NEIGHBOR_REASSOC_RSSI_THRESHOLD_DEFAULT           (83)
 
 #define CFG_NEIGHBOR_LOOKUP_RSSI_THRESHOLD_NAME      "gNeighborLookupThreshold"
 #define CFG_NEIGHBOR_LOOKUP_RSSI_THRESHOLD_MIN       (10)
 #define CFG_NEIGHBOR_LOOKUP_RSSI_THRESHOLD_MAX       (120)
-#define CFG_NEIGHBOR_LOOKUP_RSSI_THRESHOLD_DEFAULT   (120)
+#define CFG_NEIGHBOR_LOOKUP_RSSI_THRESHOLD_DEFAULT   (78)
 
 #define CFG_NEIGHBOR_SCAN_CHAN_LIST_NAME                      "gNeighborScanChannelList"
 #define CFG_NEIGHBOR_SCAN_CHAN_LIST_DEFAULT                   ""
@@ -1146,14 +1163,14 @@ typedef enum
 #define CFG_NEIGHBOR_SCAN_MIN_CHAN_TIME_DEFAULT               (20)   
 
 #define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_NAME                  "gNeighborScanChannelMaxTime"
-#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MIN                   (10)   
-#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MAX                   (40)   
+#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MIN                   (3)
+#define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_MAX                   (300)
 #define CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_DEFAULT               (30)   
 
 #define CFG_11R_NEIGHBOR_REQ_MAX_TRIES_NAME           "gMaxNeighborReqTries"
 #define CFG_11R_NEIGHBOR_REQ_MAX_TRIES_MIN            (1)
 #define CFG_11R_NEIGHBOR_REQ_MAX_TRIES_MAX            (4)
-#define CFG_11R_NEIGHBOR_REQ_MAX_TRIES_DEFAULT        (1)
+#define CFG_11R_NEIGHBOR_REQ_MAX_TRIES_DEFAULT        (3)
 
 
 #define CFG_NEIGHBOR_SCAN_RESULTS_REFRESH_PERIOD_NAME         "gNeighborScanRefreshPeriod"
@@ -1221,6 +1238,12 @@ typedef enum
 #define CFG_ENABLE_HOST_ARPOFFLOAD_MIN          ( 0 )
 #define CFG_ENABLE_HOST_ARPOFFLOAD_MAX          ( 1 )
 #define CFG_ENABLE_HOST_ARPOFFLOAD_DEFAULT      ( 0 )
+
+#define CFG_ENABLE_HOST_NSOFFLOAD_NAME         "hostNSOffload"
+#define CFG_ENABLE_HOST_NSOFFLOAD_MIN          ( 0 )
+#define CFG_ENABLE_HOST_NSOFFLOAD_MAX          ( 1 )
+#define CFG_ENABLE_HOST_NSOFFLOAD_DEFAULT      ( 0 )
+
 
 #define CFG_ENABLE_BTAMP_NAME                   "gEnableBtAmp"
 #define CFG_ENABLE_BTAMP_MIN                    ( 0 )
@@ -1621,6 +1644,26 @@ typedef enum
 #define CFG_TDLS_RSSI_TEARDOWN_THRESHOLD_MIN        ( -120 )
 #define CFG_TDLS_RSSI_TEARDOWN_THRESHOLD_MAX        ( 0 )
 #define CFG_TDLS_RSSI_TEARDOWN_THRESHOLD_DEFAULT    ( -75 )
+
+#define CFG_TDLS_QOS_WMM_UAPSD_MASK_NAME            "gTDLSUapsdMask" // ACs to setup U-APSD for TDLS Sta
+#define CFG_TDLS_QOS_WMM_UAPSD_MASK_MIN             (0)
+#define CFG_TDLS_QOS_WMM_UAPSD_MASK_MAX             (15)
+#define CFG_TDLS_QOS_WMM_UAPSD_MASK_DEFAULT         (0)
+
+#define CFG_TDLS_BUFFER_STA_SUPPORT_ENABLE          "gEnableTDLSBufferSta"
+#define CFG_TDLS_BUFFER_STA_SUPPORT_ENABLE_MIN      (0)
+#define CFG_TDLS_BUFFER_STA_SUPPORT_ENABLE_MAX      (1)
+#define CFG_TDLS_BUFFER_STA_SUPPORT_ENABLE_DEFAULT  (1)
+
+#define CFG_TDLS_PUAPSD_INACTIVITY_TIME             "gTDLSPuapsdInactivityTime"
+#define CFG_TDLS_PUAPSD_INACTIVITY_TIME_MIN         (0)
+#define CFG_TDLS_PUAPSD_INACTIVITY_TIME_MAX         (10)
+#define CFG_TDLS_PUAPSD_INACTIVITY_TIME_DEFAULT     (0)
+
+#define CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD          "gTDLSPuapsdRxFrameThreshold"
+#define CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD_MIN      (10)
+#define CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD_MAX      (20)
+#define CFG_TDLS_PUAPSD_RX_FRAME_THRESHOLD_DEFAULT  (10)
 #endif
 
 #ifdef WLAN_ACTIVEMODE_OFFLOAD_FEATURE
@@ -1697,9 +1740,6 @@ typedef enum
 #define CFG_LIST_OF_NON_DFS_COUNTRY_CODE                    "gListOfNonDfsCountryCode"
 #define CFG_LIST_OF_NON_DFS_COUNTRY_CODE_DEFAULT            "JO,MA"
 
-#define CFG_LIST_OF_NON_11AC_COUNTRY_CODE                    "gListOfNon11acCountryCode"
-#define CFG_LIST_OF_NON_11AC_COUNTRY_CODE_DEFAULT            "RU,UA,ZA"
-
 /*
  * IBSS Operating Channels for 2.4G and 5GHz channels
  */
@@ -1713,6 +1753,51 @@ typedef enum
 #define CFG_IBSS_ADHOC_CHANNEL_24GHZ_MAX          ( 14 )
 #define CFG_IBSS_ADHOC_CHANNEL_24GHZ_DEFAULT      ( 6 )
 
+#define CFG_LIST_OF_NON_11AC_COUNTRY_CODE           "gListOfNon11acCountryCode"
+#define CFG_LIST_OF_NON_11AC_COUNTRY_CODE_DEFAULT   "RU,UA,ZA"
+
+/* Parameter to control VHT support in 2.4 GHz band */
+#define CFG_ENABLE_VHT_FOR_24GHZ_NAME             "gEnableVhtFor24GHzBand"
+#define CFG_ENABLE_VHT_FOR_24GHZ_MIN              (0)
+#define CFG_ENABLE_VHT_FOR_24GHZ_MAX              (1)
+#define CFG_ENABLE_VHT_FOR_24GHZ_DEFAULT          (0)
+
+
+#define CFG_MAX_MEDIUM_TIME                      "gMaxMediumTime"
+#define CFG_MAX_MEDIUM_TIME_STAMIN               WNI_CFG_MAX_MEDIUM_TIME_STAMIN
+#define CFG_MAX_MEDIUM_TIME_STAMAX               WNI_CFG_MAX_MEDIUM_TIME_STAMAX
+#define CFG_MAX_MEDIUM_TIME_STADEFAULT           WNI_CFG_MAX_MEDIUM_TIME_STADEF
+
+/*
+ * SAP/P2P-GO mode traffic monitor
+ */
+#define CFG_ENABLE_TRAFFIC_MONITOR                "gEnableTrafficMonitor"
+#define CFG_ENABLE_TRAFFIC_MONITOR_MIN            ( 0 )
+#define CFG_ENABLE_TRAFFIC_MONITOR_MAX            ( 1 )
+#define CFG_ENABLE_TRAFFIC_MONITOR_DEFAULT        ( 0 )
+
+#define CFG_TRAFFIC_IDLE_TIMEOUT                  "gTrafficIdleTimeout"
+#define CFG_TRAFFIC_IDLE_TIMEOUT_MIN              ( 3000 )
+#define CFG_TRAFFIC_IDLE_TIMEOUT_MAX              ( 10000 )
+#define CFG_TRAFFIC_IDLE_TIMEOUT_DEFAULT          ( 5000 )
+
+/*
+ * SCAN Offload
+ */
+#define CFG_SCAN_OFFLOAD_NAME                     "gEnableDirectedScanOffload"
+#define CFG_SCAN_OFFLOAD_DISABLE                  ( 0 )
+#define CFG_SCAN_OFFLOAD_ENABLE                   ( 1 )
+#define CFG_SCAN_OFFLOAD_DEFAULT                  ( CFG_SCAN_OFFLOAD_DISABLE )
+
+/*
+ * Enable legacy fast roaming (LFR) on STA link during concurrent sessions
+ */
+#ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
+#define CFG_ENABLE_FAST_ROAM_IN_CONCURRENCY          "gEnableFastRoamInConcurrency"
+#define CFG_ENABLE_FAST_ROAM_IN_CONCURRENCY_MIN      ( 0 )
+#define CFG_ENABLE_FAST_ROAM_IN_CONCURRENCY_MAX      ( 1 )
+#define CFG_ENABLE_FAST_ROAM_IN_CONCURRENCY_DEFAULT  ( 1 )
+#endif
 
 /*--------------------------------------------------------------------------- 
   Type declarations
@@ -1851,9 +1936,6 @@ typedef struct
    v_U16_t       nEmptyScanRefreshPeriod;
 #endif
 
-   //Handoff Parameters
-   v_BOOL_t      fIsHandoffEnabled;
-
    //Additional Handoff params
    v_BOOL_t       nEnableIdleScan;
    v_U32_t        nRoamingTime;
@@ -1873,14 +1955,17 @@ typedef struct
    v_U32_t        nActiveMinChnTimeConc;     //in units of milliseconds
    v_U32_t        nActiveMaxChnTimeConc;     //in units of milliseconds
    v_U32_t        nRestTimeConc;             //in units of milliseconds
-   v_U8_t         nNumChanCombinedConc;      //number of channels combined
-                                             //in each split scan operation
+   v_U8_t         nNumStaChanCombinedConc;   //number of channels combined for
+                                             //STA in each split scan operation
+   v_U8_t         nNumP2PChanCombinedConc;   //number of channels combined for
+                                             //P2P in each split scan operation
 #endif
 
    v_U8_t         nMaxPsPoll;
 
    v_U8_t         nRssiFilterPeriod;
    v_BOOL_t       fIgnoreDtim;
+   v_U8_t         fMaxLIModulatedDTIM;
 
    v_U8_t         nRxAnt;
    v_U8_t         fEnableFwHeartBeatMonitoring;
@@ -1913,7 +1998,6 @@ typedef struct
    v_BOOL_t                     isFastTransitionEnabled;
    v_U8_t                       RoamRssiDiff;
    v_U8_t                       nImmediateRoamRssiDiff;
-   v_BOOL_t                     isWESModeEnabled;
 #endif
 #ifdef FEATURE_WLAN_OKC
    v_BOOL_t                     isOkcIniFeatureEnabled;
@@ -1968,6 +2052,7 @@ typedef struct
    v_BOOL_t                    bSingleTidRc;
    v_U8_t                      mcastBcastFilterSetting;
    v_BOOL_t                    fhostArpOffload;
+   v_BOOL_t                    fhostNSOffload;
    v_BOOL_t                    burstSizeDefinition;
    v_U8_t                      tsInfoAckPolicy;
    
@@ -2024,6 +2109,8 @@ typedef struct
 #if  defined (WLAN_FEATURE_VOWIFI_11R) || defined (FEATURE_WLAN_CCX) || defined(FEATURE_WLAN_LFR)
    v_BOOL_t                    nRoamPrefer5GHz;
    v_BOOL_t                    nRoamIntraBand;
+   v_U8_t                      nProbes;
+   v_U16_t                     nRoamScanHomeAwayTime;
 #endif
    v_S31_t                     linkSpeedRssiMid;
    v_S31_t                     linkSpeedRssiLow;
@@ -2061,6 +2148,10 @@ typedef struct
    v_U32_t                     fTDLSRSSIHysteresis;
    v_S31_t                     fTDLSRSSITriggerThreshold;
    v_S31_t                     fTDLSRSSITeardownThreshold;
+   v_U32_t                     fTDLSUapsdMask;    // what ACs to setup U-APSD for TDLS
+   v_U32_t                     fEnableTDLSBufferSta;
+   v_U32_t                     fTDLSPuapsdInactivityTimer;
+   v_U32_t                     fTDLSRxFrameThreshold;
 #endif
    v_U32_t                     enableLpwrImgTransition;
 #ifdef WLAN_SOFTAP_VSTA_FEATURE
@@ -2078,9 +2169,19 @@ typedef struct
    v_U8_t                      retryLimitZero;
    v_U8_t                      retryLimitOne;
    v_U8_t                      retryLimitTwo;
+   v_U8_t                      disableAggWithBtc;
    char                        listOfNonDfsCountryCode[128];
    v_BOOL_t                    enableSSR;
    char                        listOfNon11acCountryCode[128];
+   v_U32_t                     cfgMaxMediumTime;
+   v_U8_t                      enableTrafficMonitor;
+   v_U32_t                     trafficIdleTimeout;
+   v_BOOL_t                    enableVhtFor24GHzBand;
+   v_U8_t                      fScanOffload;
+#ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
+   /* Flag indicating whether legacy fast roam during concurrency is enabled in cfg.ini or not */
+   v_BOOL_t                    bFastRoamInConIniFeatureEnabled;
+#endif
 } hdd_config_t;
 /*--------------------------------------------------------------------------- 
   Function declarations and documenation
