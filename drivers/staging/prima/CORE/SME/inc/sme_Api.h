@@ -778,6 +778,16 @@ eHalStatus sme_GetStatistics(tHalHandle hHal, eCsrStatsRequesterType requesterId
                              tANI_U32 periodicity, tANI_BOOLEAN cache, 
                              tANI_U8 staId, void *pContext);
 
+/* ---------------------------------------------------------------------------
+    \fn smeGetTLSTAState
+    \helper function to get teh TL STA State whenever the function is called.
+
+    \param staId - The staID to be passed to the TL
+            to get the relevant TL STA State
+    \return the state as tANI_U16
+  ---------------------------------------------------------------------------*/
+tANI_U16 smeGetTLSTAState(tHalHandle hHal, tANI_U8 staId);
+
 eHalStatus sme_GetRssi(tHalHandle hHal, 
                              tCsrRssiCallback callback, 
                              tANI_U8 staId, tCsrBssid bssId, void *pContext, void* pVosContext);
@@ -1418,6 +1428,49 @@ eHalStatus sme_ChangeCountryCode( tHalHandle hHal,
                                   void *pContext,
                                   void* pVosContext,
                                   tAniBool countryFromUserSpace );
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_DHCPStartInd
+
+    \brief Indicate FW about DHCP start event.
+
+    \param hHal - The handle returned by macOpen.
+
+    \param device_mode the mode of the device
+
+    \param macAddr the macAddress of the devices
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+
+  -------------------------------------------------------------------------------*/
+
+eHalStatus sme_DHCPStartInd( tHalHandle hHal,
+                             tANI_U8 device_mode,
+                             tANI_U8 *macAddr );
+
+/* ---------------------------------------------------------------------------
+
+    \fn sme_DHCPStopInd
+
+    \brief Indicate FW about DHCP stop event.
+
+    \param hHal - The handle returned by macOpen.
+
+    \param device_mode the mode of the device
+
+    \param macAddr the macAddress of the devices
+
+    \return eHalStatus  SUCCESS.
+
+                         FAILURE or RESOURCES  The API finished and failed.
+
+ -------------------------------------------------------------------------------*/
+eHalStatus sme_DHCPStopInd( tHalHandle hHal,
+                            tANI_U8 device_mode,
+                            tANI_U8 *macAddr );
 
 
 /* ---------------------------------------------------------------------------
